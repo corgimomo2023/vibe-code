@@ -56,8 +56,8 @@ A complete north-star programme spans several product streams. Plan for a dedica
 Stage 0 should finish with reproducible evidence for all of the following:
 
 1. Create, start, stop and recreate a Coder workspace on the intended test infrastructure.
-2. Complete a real browser workflow with the pinned code-server and coding-agent extension: activation, file edits, diff, terminal approval, checkpoint, attachment and visible failure/retry.
-3. Stream approved model calls through LiteLLM with scoped-key creation and revocation.
+2. Complete a real browser workflow with the pinned code-server and Cline extension: activation, webview, file edits, diff, terminal approval, checkpoint, attachment, OAuth callback and visible failure/retry.
+3. Prove Cline → LiteLLM → approved model streaming, large-context handling, tool calling, optional vision where the chosen use cases need it, scoped virtual-key creation and virtual-key revocation.
 4. Run a React/Vite + FastAPI golden POC through authenticated frontend and API previews.
 5. Preserve committed source, persistent data and workspace isolation across stop/start/recreate.
 6. Record pinned versions, edition/licensing limits, startup and resource measurements, browser evidence and failure logs.
