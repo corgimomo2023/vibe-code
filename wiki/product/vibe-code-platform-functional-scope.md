@@ -22,6 +22,20 @@ Source: [Vibe-Code platform raw plan](../raw/vibe-code-platform-plan.md). Archit
 | IT delivery owner | Accept or reject the handover package for enterprise re-engineering | Does not directly promote the POC image or POC credentials |
 | Product sponsor | Approve scope, phase gates, service level and funding | Stage evidence is required before funding the next phase |
 
+### Actor aliases used by stories and use cases
+
+The following names are scoped aliases, not additional undefined actors:
+
+| Alias | Canonical actor |
+|---|---|
+| Team owner / project owner | Team/project owner |
+| Template owner / package owner | Team/project owner acting as the accountable catalogue owner |
+| Mobile user | Citizen developer using the task-first PWA |
+| Data owner | Team/project owner for project data; platform administrator for platform records; security/privacy reviewer approves retention and legal-hold policy |
+| Network owner | Network/infrastructure owner |
+| Security reviewer / privacy reviewer | Security/privacy reviewer |
+| IT owner | IT delivery owner |
+
 ## Epic and feature map
 
 | Epic | Outcome | Primary features | Proposed phase |
@@ -36,6 +50,33 @@ Source: [Vibe-Code platform raw plan](../raw/vibe-code-platform-plan.md). Archit
 | EP-08 Durable asynchronous agents and mobile UX | A task continues safely after the browser closes and returns for review | PostgreSQL task state, outbox, RabbitMQ, isolated runners, approval, event replay, Stop, notification, mobile PWA | Stage 4–5 |
 | EP-09 Platform operations, capacity and recovery | The service remains operable under load and recoverable from failure | Admission queue, autoscaling, observability, SLO, backup/restore, multi-AZ, HK warm-passive DR | Stage 2–6 |
 | EP-10 Supply chain and integrations | Approved reusable components enter projects through controlled interfaces | Git/OCI, package/image mirrors, signed artifacts, webhooks/Teams/email, IdP and provider integrations | Stage 1–6 |
+
+### Story-to-phase assignment
+
+Each story has one explicit first delivery phase. Later hardening may continue in subsequent stages.
+
+| Story | First delivery phase | Story | First delivery phase |
+|---|---|---|---|
+| US-01 | Stage 1 | US-21 | Stage 1 |
+| US-02 | Stage 1 | US-22 | Stage 1 |
+| US-03 | Stage 1 | US-23 | Stage 2 |
+| US-04 | Stage 2 | US-24 | Stage 1 |
+| US-05 | Stage 0 | US-25 | Stage 1 |
+| US-06 | Stage 1 | US-26 | Stage 1 |
+| US-07 | Stage 2 | US-27 | Stage 2 |
+| US-08 | Stage 2 | US-28 | Stage 2 |
+| US-09 | Stage 0 | US-29 | Stage 2 |
+| US-10 | Stage 0 | US-30 | Stage 4 |
+| US-11 | Stage 1 | US-31 | Stage 4 |
+| US-12 | Stage 1 | US-32 | Stage 4 |
+| US-13 | Stage 2 | US-33 | Stage 5 |
+| US-14 | Stage 0 | US-34 | Stage 3 |
+| US-15 | Stage 2 | US-35 | Stage 3 |
+| US-16 | Stage 1 | US-36 | Stage 2 |
+| US-17 | Stage 1 | US-37 | Stage 3 |
+| US-18 | Stage 0 | US-38 | Stage 1 |
+| US-19 | Stage 0 | US-39 | Stage 2 |
+| US-20 | Stage 1 | US-40 | Stage 4 |
 
 ## Epic details and user stories
 
