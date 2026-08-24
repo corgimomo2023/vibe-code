@@ -24,6 +24,44 @@ This page records the target design envelope derived from [`wiki/raw/vibe-code-p
 
 ![Vibe-Code Platform target architecture](../diagrams/vibe-code-platform-target-architecture.png)
 
+## Final production topology and scaling target
+
+The final production design assumes all offices, active infrastructure, DR infrastructure and platform data residency are in Hong Kong. The active platform runs in one HK data-centre/cloud failure domain with multi-AZ placement; a physically separate HK facility provides warm-passive regional DR. Back office is an access site, not a hosting site, and office traffic uses local secure breakout to the HK edge rather than hairpinning through back office.
+
+| Production area | Scaling / HA model | Initial design envelope |
+|---|---|---|
+| Edge and regional ingress | Managed WAF/LB plus 3+ ingress/proxy replicas across AZs; WebSocket drain and reconnect | TCP 443; no sticky API session; test wildcard routing, SSE and 8–24 hour WebSocket soak |
+| Portal and Control API | Stateless, 3+ active-active replicas with topology spread and PDB | 99.9% initial monthly SLO, then 99.95% only after failover evidence |
+| Coder control and LiteLLM | 2+ replicas; state and keys externalized | Per-user/workspace virtual key, budget and fallback; no provider master key in a workspace |
+| Workspace Router | 3+ active-active proxies; route by workspace ID | Existing WebSocket may reconnect; new sessions go to healthy replicas |
+| Workspace node pool | Autoscaling stateful-compute pool; each workspace remains single-active with one PVC | Pre-warm for 30 active; autoscale to 50; contingency load test to 80; 10–20% warm slots |
+| Workspace capacity at 50 active | N+1 pool, workspace/build/system separated | About 7 × 16 vCPU/64 GiB nodes, or 4–5 × 32 vCPU/128 GiB nodes pending fragmentation and burst tests |
+| Build/evaluation pool | Separate ephemeral pool, queue/KEDA scaling | Build storm must queue rather than starve interactive IDEs |
+| Dispatcher/agent runners | 3+ workers, DB leases, idempotency, checkpoint and queue-driven KEDA | PostgreSQL state/outbox → RabbitMQ quorum queue → isolated runners |
+| PostgreSQL | Writable primary + synchronous/managed standby, PITR | Strong truth for identity, project, job, approval, audit, budget and policy |
+| RabbitMQ | Three-node quorum queues, leader/followers | Publisher confirm, manual ACK, DLQ and unacked redelivery |
+| Redis | Managed primary/replica or Sentinel | Cache/presence only; durable jobs are prohibited |
+| DR | Warm-passive second HK facility with fenced promotion | Initial regional RTO ≤ 2 hours and RPO ≤ 15 minutes; prove by restore/failover drill |
+
+Capacity assumptions are load-test starting points, not supplier guarantees. The weighted workspace request is 1.15 vCPU, 3.6 GiB RAM and 18 GiB disk. One hundred registered workspaces therefore require about 2.29 TiB of workspace storage after a 30% buffer, before registry, object-store and database capacity. The platform must expose admission state as `CAPACITY_QUEUED`; capacity exhaustion must never masquerade as login failure.
+
+## User and platform data locations
+
+| Data class | Authoritative location | Replication, retention and ownership |
+|---|---|---|
+| User identity, teams, sessions and role bindings | HK private PostgreSQL data zone | Writable primary + standby, encrypted backup and PITR; identity/platform owner controls access |
+| Projects, workspace records, job/outbox state, approvals, policy, audit, budgets and cost rollups | HK private PostgreSQL data zone | Transactional truth, row/version checks, PITR and DR-log copy; no public endpoint |
+| Source code and checkpoints | Approved HK Git service | Commit SHA is source truth; protected branches, backup and exportability; PVC is not source truth |
+| Live workspace filesystem | Per-workspace PVC in active HK facility | Single-active attachment; 10/20/50 GiB profile; snapshot to HK object storage; local-path storage is never the only copy |
+| Workspace snapshot, POC artifact, SBOM, evaluation evidence and handover package | HK object storage / OCI registry | Content digest, encryption, lifecycle and deletion policy; replicated to warm-passive HK DR |
+| Cache, presence and WebSocket fan-out | HK Redis private endpoint | Rebuildable; no durable job or approval truth |
+| Logs, metrics and privacy-aware traces | HK observability stores | User/workspace identity stays in controlled logs/traces, not high-cardinality metrics; explicit retention, RBAC, redaction and deletion |
+| Secrets and provider master keys | HK Vault/KMS or approved secret manager | Applications store references only; workspaces receive scoped, expiring virtual keys that revoke on suspension |
+| AI prompts/responses sent to a model provider | Approved provider endpoint selected by data policy | Residency, retention and training-use terms are a deployment gate. If HK-only residency is mandatory, use an HK/private endpoint or block that route |
+| DR copies | Physically separate HK DC/cloud failure domain | PostgreSQL log/PITR, object/registry replication, GitOps manifests, images and secret references; no concurrent writable primary |
+
+The HK-only design accepts a residual risk: it does not survive a territory-wide Hong Kong outage. If policy forbids overseas DR, this limitation must be recorded rather than hidden behind an unsupported multi-region claim.
+
 ## Plane responsibilities
 
 | Plane | Responsibilities | Earliest stage |
