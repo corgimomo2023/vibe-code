@@ -11,6 +11,7 @@
 ## Durable areas
 
 - [Product](product/README.md)
+- [Vibe-Code functional scope: epics, stories and use cases](product/vibe-code-platform-functional-scope.md)
 - [Knowledge base](knowledge-base/index.md)
 - [Architecture and ADRs](architecture/README.md)
 - [Vibe-Code target architecture and delivery plan](architecture/baseline/vibe-code-platform-target-architecture.md)
