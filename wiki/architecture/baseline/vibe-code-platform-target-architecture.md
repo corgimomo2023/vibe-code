@@ -194,6 +194,7 @@ For every unresolved item, record: **decision ID**, **question**, **options cons
 
 ## Related artifacts
 
+- [Functional scope: actors, epics, user stories and use cases](../../product/vibe-code-platform-functional-scope.md)
 - [Architecture and planning Word report](../reports/vibe-code-platform-architecture-and-plan.docx)
 - [Editable architecture diagram](../diagrams/vibe-code-platform-target-architecture.html)
 - [PNG architecture diagram](../diagrams/vibe-code-platform-target-architecture.png)
