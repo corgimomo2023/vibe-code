@@ -13,6 +13,8 @@
 - [Product](product/README.md)
 - [Knowledge base](knowledge-base/index.md)
 - [Architecture and ADRs](architecture/README.md)
+- [Vibe-Code target architecture and delivery plan](architecture/baseline/vibe-code-platform-target-architecture.md)
+- [Vibe-Code architecture and planning Word report](architecture/reports/vibe-code-platform-architecture-and-plan.docx)
 - [Delivery](delivery/README.md)
 - [Security governance](governance/security.md)
 
