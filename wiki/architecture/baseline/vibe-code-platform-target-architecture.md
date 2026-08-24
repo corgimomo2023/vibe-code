@@ -140,6 +140,48 @@ Mandatory controls from the first shared pilot:
 | Broker operations | Managed or owned RabbitMQ with confirm, redelivery, partition, disk and DLQ drills |
 | Scope inflation | Stage funding gates based on adoption, failures, cost, security and support evidence |
 
+## Planning assumptions and decision register
+
+This section is intentionally incomplete. It is the structured placeholder that product, infrastructure, security, data, network and operations owners must complete before production design freeze. A blank field is not approval: use `DECISION REQUIRED`, assign one accountable owner, set a due date and attach evidence.
+
+### Feature and phase register
+
+| Feature / capability | Proposed phase | Production requirement / gate | Owner | Decision status |
+|---|---|---|---|---|
+| Portal, SSO, project list and workspace lifecycle | Stage 1 | Repeatable journey for 5–10 named users | Product / identity | DECISION REQUIRED |
+| Golden React/FastAPI template and authenticated preview | Stage 0–1 | Browser E2E, persistence and isolation evidence | Template owner | DECISION REQUIRED |
+| Immutable templates, packages, scans and handover | Stage 2 | Versioning, SBOM, compatibility and IT receipt | Platform / security | DECISION REQUIRED |
+| 30–50 concurrent workspace scaling | Stage 3 | Mixed-load test, N+1 node loss and admission queue | Infrastructure | DECISION REQUIRED |
+| Durable asynchronous agents and RabbitMQ | Stage 4 | Outbox, idempotency, ACK/redelivery, checkpoint and approval | Platform / operations | DECISION REQUIRED |
+| Mobile task client and notifications | Stage 5 | Reconnect, event-gap replay, scoped approvals and Stop | Product / platform | DECISION REQUIRED |
+| Detached POC preview, advanced sandbox, graph evidence and full DR | Stage 6 / evidence-led | Separate business case, risk and operating-owner approval | Sponsor / security / operations | DECISION REQUIRED |
+
+### Production questions that must be answered
+
+| Decision area | Question to raise | Current planning hypothesis | Required evidence / approver |
+|---|---|---|---|
+| Users and concurrency | How many registered, daily active, peak concurrent IDE, preview, build and AI-stream users must production support? | 30 pre-warmed, 50 active target, 80 contingency test | Named user forecast, adoption data and mixed-load test; product sponsor + infrastructure |
+| Resource mix | What percentage of Light, Standard and Heavy workspaces is expected, and what limits may each team override? | 50% / 40% / 10%; 10/20/50 GiB PVC | Pilot telemetry, build peak and noisy-neighbour test; platform owner |
+| Data residency | Must all identity, source, workspace, artifact, backup, log, trace and AI prompt data remain in Hong Kong? | Platform and DR data in HK; AI route blocked unless provider terms satisfy policy | Data-flow map, provider contract and privacy review; data owner + security |
+| Data ownership | Which system is authoritative for each data class, and who may read, export or delete it? | PostgreSQL, Git, PVC, object/OCI, Redis and Vault split as documented | Data classification/RACI and access tests; data owner |
+| Retention | How long are workspace snapshots, POC previews, artifacts, logs, audit events, prompts/traces and handover packages retained? | DECISION REQUIRED; do not inherit tool defaults | Legal/privacy schedule, storage-cost estimate and deletion test |
+| Backup frequency | What backup/snapshot frequency, immutability period and off-site/DR copy apply to PostgreSQL, Git, PVC, object store, registry and Vault? | PostgreSQL PITR plus scheduled snapshots; object/registry replication | Backup matrix and restore drill; operations + data owner |
+| RPO / RTO | What business-approved RPO and RTO apply to control plane, source, workspace files, jobs and full regional failure? | Regional RTO ≤ 2 h / RPO ≤ 15 min hypothesis; workspace process state not protected | Failure-impact assessment and timed DR exercise; business + operations |
+| Office bandwidth | What concurrent developers and committed primary/secondary bandwidth exist per site? | 5 Mbps/user × 1.3 headroom; local HK breakout | Site inventory, packet-loss/latency baseline and failover test; network owner |
+| Cluster bandwidth | What peak IDE/preview, image pull, build/artifact and east-west throughput is required? | At least 1 Gbps node/registry/cache path as a test starting point | WAF/LB/NAT/registry/PVC throughput test; infrastructure |
+| Spike control | Which workloads are admitted, queued, throttled or deprioritized when nodes, storage, provider quota or bandwidth are exhausted? | Preserve login and running IDEs; queue new starts; deprioritize background builds/agents | Morning-storm/capacity-exhaustion tests and approved fairness policy |
+| Autoscaling limits | What min/pre-warm/max nodes, warm slots, provider quota and maximum spend are approved? | Pre-warm 30, autoscale 50, test 80; 10–20% warm slots | Node launch timing, quota confirmation and cost cap; FinOps + infrastructure |
+| Availability | What SLO is funded for portal/API, IDE routing, workspace start and AI gateway? | 99.9% initially; 99.95% only after failover evidence | Error budget, monitoring and on-call commitment; sponsor + operations |
+| Security boundary | Which workspace egress, packages, model aliases and raw ports are allowed by default, and which require approval? | Freedom-first Internet egress through audited gateway; block metadata/private networks | Threat model, NetworkPolicy enforcement test and exception workflow |
+| Identity and revoke | Which IdP, role mapping, session lifetime and revoke target are required? | Company SSO; user disable revokes session, routes and AI key within 60 seconds | IdP integration and revoke E2E; identity owner |
+| AI privacy and cost | May prompts/code leave HK, be retained or used for training, and what budget/rate limits apply per user/team? | Metadata-only trace by default; provider route gated by policy | Provider DPA/terms, redaction test, invoice reconciliation and approved hard caps |
+| Operating ownership | Who owns platform changes, templates/packages, security policy, backups, alerts, incidents and user support? | DECISION REQUIRED before shared production | Named RACI, on-call rota, runbooks and service acceptance |
+| Exit / decommission | How are user data exported, retained or deleted when a project/user/team or the platform closes? | Git/source export plus controlled data deletion; no silent orphaned PVC | Export/delete E2E, legal hold and decommission runbook |
+
+### Decision record template
+
+For every unresolved item, record: **decision ID**, **question**, **options considered**, **recommended option**, **decision owner**, **approvers**, **due date**, **evidence link**, **cost/operational impact**, **decision**, and **revisit trigger**. Architecture numbers marked as hypotheses must not be converted into procurement commitments until the linked evidence is approved.
+
 ## Immediate planning actions
 
 1. Approve only the five Stage 0 feasibility questions, not the entire north-star build.
