@@ -1,0 +1,1860 @@
+{
+  "version": 2,
+  "source": "Canonical state contract shared by DOCX diagrams and XLSX State Transitions",
+  "machines": [
+    {
+      "field": "PROJECT.lifecycle_status",
+      "owner": "NestJS control plane",
+      "guard_summary": "Owner-authorized command; command-id dedup and aggregate row-version CAS commit atomically.",
+      "states": [
+        {
+          "name": "INITIALIZING",
+          "initial": true,
+          "terminal": false,
+          "owner": "NestJS control plane",
+          "ui": "Initializing"
+        },
+        {
+          "name": "INITIALIZATION_FAILED",
+          "initial": false,
+          "terminal": false,
+          "owner": "NestJS control plane",
+          "ui": "Action required"
+        },
+        {
+          "name": "ACTIVE",
+          "initial": false,
+          "terminal": false,
+          "owner": "NestJS control plane",
+          "ui": "Ready"
+        },
+        {
+          "name": "DEGRADED",
+          "initial": false,
+          "terminal": false,
+          "owner": "NestJS control plane",
+          "ui": "Needs attention"
+        },
+        {
+          "name": "SOFT_DELETED",
+          "initial": false,
+          "terminal": false,
+          "owner": "NestJS control plane",
+          "ui": "Soft Deleted"
+        },
+        {
+          "name": "PURGING",
+          "initial": false,
+          "terminal": false,
+          "owner": "NestJS control plane",
+          "ui": "Purging"
+        },
+        {
+          "name": "PURGE_FAILED",
+          "initial": false,
+          "terminal": false,
+          "owner": "NestJS control plane",
+          "ui": "Action required"
+        },
+        {
+          "name": "DELETED",
+          "initial": false,
+          "terminal": true,
+          "owner": "NestJS control plane",
+          "ui": "Deleted"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "INITIALIZING",
+          "to": "ACTIVE",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "INITIALIZING",
+          "to": "INITIALIZATION_FAILED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "INITIALIZING",
+          "to": "SOFT_DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "INITIALIZATION_FAILED",
+          "to": "INITIALIZING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "INITIALIZATION_FAILED",
+          "to": "SOFT_DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "ACTIVE",
+          "to": "DEGRADED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "ACTIVE",
+          "to": "SOFT_DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "ACTIVE",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "SOFT_DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "SOFT_DELETED",
+          "to": "ACTIVE",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "SOFT_DELETED",
+          "to": "PURGING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "PURGING",
+          "to": "DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "PURGING",
+          "to": "PURGE_FAILED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        },
+        {
+          "from": "PURGE_FAILED",
+          "to": "PURGING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRJ-01–02"
+        }
+      ]
+    },
+    {
+      "field": "WORKSPACE.desired_status",
+      "owner": "NestJS command/policy",
+      "guard_summary": "Owner-authorized intent; mutation serialization and aggregate row-version CAS.",
+      "states": [
+        {
+          "name": "RUNNING",
+          "initial": false,
+          "terminal": false,
+          "owner": "NestJS command/policy",
+          "ui": "Running"
+        },
+        {
+          "name": "STOPPED",
+          "initial": true,
+          "terminal": false,
+          "owner": "NestJS command/policy",
+          "ui": "Stopped"
+        },
+        {
+          "name": "DELETED",
+          "initial": false,
+          "terminal": true,
+          "owner": "NestJS command/policy",
+          "ui": "Deleted"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "RUNNING",
+          "to": "STOPPED",
+          "guard": "Explicit Stop or idle policy; idle policy first records stop_reason=IDLE_TIMEOUT.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-LFC-01 / AC-LFC-02"
+        },
+        {
+          "from": "RUNNING",
+          "to": "DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-LFC-01 / AC-LFC-02"
+        },
+        {
+          "from": "STOPPED",
+          "to": "RUNNING",
+          "guard": "Explicit Open/Start only; idle-stopped workspace never auto-restarts.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-LFC-01 / AC-LFC-02"
+        },
+        {
+          "from": "STOPPED",
+          "to": "DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-LFC-01 / AC-LFC-02"
+        }
+      ]
+    },
+    {
+      "field": "WORKSPACE.observed_status",
+      "owner": "Runtime Controller",
+      "guard_summary": "Runtime Controller observation; readiness, UID and generation evidence must match desired state.",
+      "states": [
+        {
+          "name": "ABSENT",
+          "initial": true,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Absent"
+        },
+        {
+          "name": "QUEUED",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Waiting"
+        },
+        {
+          "name": "STARTING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Starting"
+        },
+        {
+          "name": "READY",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Ready"
+        },
+        {
+          "name": "BUSY",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Busy"
+        },
+        {
+          "name": "IDLE_WARNING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Idle Warning"
+        },
+        {
+          "name": "DEGRADED",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Needs attention"
+        },
+        {
+          "name": "ERROR",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Action required"
+        },
+        {
+          "name": "STOPPING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Stopping"
+        },
+        {
+          "name": "STOPPED",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Stopped"
+        },
+        {
+          "name": "DELETING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Runtime Controller",
+          "ui": "Deleting"
+        },
+        {
+          "name": "DELETED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Runtime Controller",
+          "ui": "Deleted"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "ABSENT",
+          "to": "QUEUED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "ABSENT",
+          "to": "STARTING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "ABSENT",
+          "to": "DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "QUEUED",
+          "to": "STARTING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "QUEUED",
+          "to": "STOPPED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "QUEUED",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "READY",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "DEGRADED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "STOPPING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "READY",
+          "to": "BUSY",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "READY",
+          "to": "IDLE_WARNING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "READY",
+          "to": "DEGRADED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "READY",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "READY",
+          "to": "STOPPING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "BUSY",
+          "to": "READY",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "BUSY",
+          "to": "DEGRADED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "BUSY",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "BUSY",
+          "to": "STOPPING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "IDLE_WARNING",
+          "to": "READY",
+          "guard": "New browser/preview/run activity cancels idle timer.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "IDLE_WARNING",
+          "to": "BUSY",
+          "guard": "New browser/preview/run activity cancels idle timer.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "IDLE_WARNING",
+          "to": "STOPPING",
+          "guard": "desired_status already atomically changed to STOPPED.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "IDLE_WARNING",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "READY",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "STOPPING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "ERROR",
+          "to": "QUEUED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "ERROR",
+          "to": "STARTING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "ERROR",
+          "to": "STOPPING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "ERROR",
+          "to": "DELETING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STOPPING",
+          "to": "STOPPED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STOPPING",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STOPPED",
+          "to": "QUEUED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STOPPED",
+          "to": "STARTING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "STOPPED",
+          "to": "DELETING",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "DELETING",
+          "to": "DELETED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        },
+        {
+          "from": "DELETING",
+          "to": "ERROR",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01 / AC-CAP-01"
+        }
+      ]
+    },
+    {
+      "field": "AGENT_RUN.execution_status",
+      "owner": "Agent orchestrator",
+      "guard_summary": "One project mutation lease; admitted Job identity, heartbeat and stop/fencing evidence.",
+      "states": [
+        {
+          "name": "REQUESTED",
+          "initial": true,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Waiting"
+        },
+        {
+          "name": "QUEUED",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Waiting"
+        },
+        {
+          "name": "PLANNING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Planning"
+        },
+        {
+          "name": "BUILDING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Building"
+        },
+        {
+          "name": "CHECKING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Checking"
+        },
+        {
+          "name": "WAITING_APPROVAL",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Awaiting your approval"
+        },
+        {
+          "name": "APPLYING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Applying capability / Building"
+        },
+        {
+          "name": "PREPARING_PREVIEW",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Preparing preview"
+        },
+        {
+          "name": "STOPPING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Agent orchestrator",
+          "ui": "Stopping"
+        },
+        {
+          "name": "COMPLETED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Agent orchestrator",
+          "ui": "Ready"
+        },
+        {
+          "name": "STOPPED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Agent orchestrator",
+          "ui": "Stopped"
+        },
+        {
+          "name": "FAILED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Agent orchestrator",
+          "ui": "Action required"
+        },
+        {
+          "name": "TIMED_OUT",
+          "initial": false,
+          "terminal": true,
+          "owner": "Agent orchestrator",
+          "ui": "Action required"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "REQUESTED",
+          "to": "QUEUED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity. If prior_attempt_id is present, prior attempt must be terminal and exactly one Agent JOB RUNTIME_RESOURCE_REF with agent_run_id=prior_attempt_id must contain observed_uid plus schema-valid write_revocation_json; otherwise reject and keep mutation blocked.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "REQUESTED",
+          "to": "PLANNING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity. If prior_attempt_id is present, prior attempt must be terminal and exactly one Agent JOB RUNTIME_RESOURCE_REF with agent_run_id=prior_attempt_id must contain observed_uid plus schema-valid write_revocation_json; otherwise reject and keep mutation blocked.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "REQUESTED",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "REQUESTED",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "QUEUED",
+          "to": "PLANNING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "QUEUED",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "QUEUED",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "QUEUED",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PLANNING",
+          "to": "BUILDING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PLANNING",
+          "to": "WAITING_APPROVAL",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PLANNING",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PLANNING",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PLANNING",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "BUILDING",
+          "to": "CHECKING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "BUILDING",
+          "to": "WAITING_APPROVAL",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "BUILDING",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "BUILDING",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "BUILDING",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "CHECKING",
+          "to": "WAITING_APPROVAL",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "CHECKING",
+          "to": "APPLYING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "CHECKING",
+          "to": "PREPARING_PREVIEW",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "CHECKING",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "CHECKING",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "CHECKING",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "WAITING_APPROVAL",
+          "to": "APPLYING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "WAITING_APPROVAL",
+          "to": "COMPLETED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "WAITING_APPROVAL",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "WAITING_APPROVAL",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "APPLYING",
+          "to": "CHECKING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "APPLYING",
+          "to": "PREPARING_PREVIEW",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "APPLYING",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "APPLYING",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "APPLYING",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PREPARING_PREVIEW",
+          "to": "COMPLETED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PREPARING_PREVIEW",
+          "to": "STOPPING",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PREPARING_PREVIEW",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "PREPARING_PREVIEW",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "STOPPING",
+          "to": "STOPPED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity. Require the unique RUNTIME_RESOURCE_REF.agent_run_id=this AGENT_RUN, exact old Job/Pod UID, Kubernetes deletion observation and fail-closed post-delete write probe; lease expiry or another run proof is insufficient.",
+          "effect": "Atomically set STOPPED/ABORTED only after durable UID-bound write-revocation proof; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        },
+        {
+          "from": "STOPPING",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Execution/outcome pair must remain legal atomically; append transition audit.",
+          "ac": "AC-CHAT-01–06 / AC-CHG-01–03"
+        }
+      ]
+    },
+    {
+      "field": "AGENT_RUN.outcome_status",
+      "owner": "Validation/approval service",
+      "guard_summary": "Validated proposal plus explicit accept/reject/abort decision; terminal attempts are immutable.",
+      "states": [
+        {
+          "name": "DRAFT",
+          "initial": true,
+          "terminal": false,
+          "owner": "Validation/approval service",
+          "ui": "Draft"
+        },
+        {
+          "name": "VALIDATED",
+          "initial": false,
+          "terminal": false,
+          "owner": "Validation/approval service",
+          "ui": "Validated"
+        },
+        {
+          "name": "ACCEPTED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Validation/approval service",
+          "ui": "Accepted"
+        },
+        {
+          "name": "REJECTED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Validation/approval service",
+          "ui": "Rejected"
+        },
+        {
+          "name": "ABORTED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Validation/approval service",
+          "ui": "Aborted"
+        },
+        {
+          "name": "FAILED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Validation/approval service",
+          "ui": "Action required"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "DRAFT",
+          "to": "VALIDATED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-CHAT-03–04 / AC-CHG-02–03"
+        },
+        {
+          "from": "DRAFT",
+          "to": "ABORTED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-CHAT-03–04 / AC-CHG-02–03"
+        },
+        {
+          "from": "DRAFT",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-CHAT-03–04 / AC-CHG-02–03"
+        },
+        {
+          "from": "VALIDATED",
+          "to": "ACCEPTED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-CHAT-03–04 / AC-CHG-02–03"
+        },
+        {
+          "from": "VALIDATED",
+          "to": "REJECTED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-CHAT-03–04 / AC-CHG-02–03"
+        },
+        {
+          "from": "VALIDATED",
+          "to": "ABORTED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-CHAT-03–04 / AC-CHG-02–03"
+        },
+        {
+          "from": "VALIDATED",
+          "to": "FAILED",
+          "guard": "Owner-authorized run command; AGENT_RUN.row_version compare-and-swap and (thread_id,idempotency_key) command identity.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-CHAT-03–04 / AC-CHG-02–03"
+        }
+      ]
+    },
+    {
+      "field": "PREVIEW_AUTH_GRANT.grant_status",
+      "owner": "Preview Gateway",
+      "guard_summary": "Verify active kid/signature and exact JWT audience/owner/session/project/generation/expiry; CAS-consume hashed jti once, then bind the host-only preview cookie.",
+      "states": [
+        {
+          "name": "ISSUED",
+          "initial": true,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Issued"
+        },
+        {
+          "name": "CONSUMING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Consuming"
+        },
+        {
+          "name": "ACTIVE",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Ready"
+        },
+        {
+          "name": "ROTATING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Rotating"
+        },
+        {
+          "name": "EXPIRED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Preview Gateway",
+          "ui": "Expired"
+        },
+        {
+          "name": "REVOKED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Preview Gateway",
+          "ui": "Revoked"
+        },
+        {
+          "name": "FAILED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Preview Gateway",
+          "ui": "Action required"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "ISSUED",
+          "to": "CONSUMING",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Atomically consume jwt_jti_hash by CAS; a second replica/replay loses the update and is denied. Raw JWT is never persisted or logged.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ISSUED",
+          "to": "EXPIRED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ISSUED",
+          "to": "REVOKED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "CONSUMING",
+          "to": "ACTIVE",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Atomically store only the short-lived host-only preview-cookie hash, clear one-time exchange authority and append audit without JWT/cookie/session material.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "CONSUMING",
+          "to": "EXPIRED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "CONSUMING",
+          "to": "REVOKED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "CONSUMING",
+          "to": "FAILED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ACTIVE",
+          "to": "ROTATING",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ACTIVE",
+          "to": "EXPIRED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ACTIVE",
+          "to": "REVOKED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ROTATING",
+          "to": "ACTIVE",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ROTATING",
+          "to": "EXPIRED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        },
+        {
+          "from": "ROTATING",
+          "to": "REVOKED",
+          "guard": "Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.",
+          "effect": "Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.",
+          "ac": "SEC-03 / AC-PRV-01"
+        }
+      ]
+    },
+    {
+      "field": "SNAPSHOT.snapshot_status",
+      "owner": "Snapshot service",
+      "guard_summary": "Git, SQLite online backup, migration/lock manifests and hashes verify as one whole-app snapshot.",
+      "states": [
+        {
+          "name": "REQUESTED",
+          "initial": true,
+          "terminal": false,
+          "owner": "Snapshot service",
+          "ui": "Waiting"
+        },
+        {
+          "name": "CAPTURING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Snapshot service",
+          "ui": "Capturing"
+        },
+        {
+          "name": "VALIDATING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Snapshot service",
+          "ui": "Checking"
+        },
+        {
+          "name": "AVAILABLE",
+          "initial": false,
+          "terminal": false,
+          "owner": "Snapshot service",
+          "ui": "Available"
+        },
+        {
+          "name": "INVALID",
+          "initial": false,
+          "terminal": false,
+          "owner": "Snapshot service",
+          "ui": "Action required"
+        },
+        {
+          "name": "FAILED",
+          "initial": false,
+          "terminal": false,
+          "owner": "Snapshot service",
+          "ui": "Action required"
+        },
+        {
+          "name": "DELETED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Snapshot service",
+          "ui": "Deleted"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "REQUESTED",
+          "to": "CAPTURING",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "REQUESTED",
+          "to": "FAILED",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "CAPTURING",
+          "to": "VALIDATING",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "CAPTURING",
+          "to": "FAILED",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "VALIDATING",
+          "to": "AVAILABLE",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "VALIDATING",
+          "to": "INVALID",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "VALIDATING",
+          "to": "FAILED",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "AVAILABLE",
+          "to": "INVALID",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "AVAILABLE",
+          "to": "DELETED",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "INVALID",
+          "to": "DELETED",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        },
+        {
+          "from": "FAILED",
+          "to": "DELETED",
+          "guard": "Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.",
+          "effect": "Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.",
+          "ac": "AC-VER-01–03"
+        }
+      ]
+    },
+    {
+      "field": "RESTORE_JOB.restore_status",
+      "owner": "Restore service",
+      "guard_summary": "Owner-only idempotent command; project lease, staged generation, before-images and journaled pointer CAS.",
+      "states": [
+        {
+          "name": "REQUESTED",
+          "initial": true,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Waiting"
+        },
+        {
+          "name": "VALIDATING_SOURCE",
+          "initial": false,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Validating Source"
+        },
+        {
+          "name": "ACQUIRING_LOCK",
+          "initial": false,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Acquiring Lock"
+        },
+        {
+          "name": "RESTORING_CODE",
+          "initial": false,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Recovering"
+        },
+        {
+          "name": "RESTORING_DB",
+          "initial": false,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Recovering"
+        },
+        {
+          "name": "VERIFYING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Recovering"
+        },
+        {
+          "name": "CUTTING_OVER",
+          "initial": false,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Cutting Over"
+        },
+        {
+          "name": "ROLLING_BACK",
+          "initial": false,
+          "terminal": false,
+          "owner": "Restore service",
+          "ui": "Recovering"
+        },
+        {
+          "name": "SUCCEEDED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Restore service",
+          "ui": "Succeeded"
+        },
+        {
+          "name": "ROLLED_BACK",
+          "initial": false,
+          "terminal": true,
+          "owner": "Restore service",
+          "ui": "Rolled Back"
+        },
+        {
+          "name": "FAILED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Restore service",
+          "ui": "Action required"
+        },
+        {
+          "name": "TIMED_OUT",
+          "initial": false,
+          "terminal": true,
+          "owner": "Restore service",
+          "ui": "Action required"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "REQUESTED",
+          "to": "VALIDATING_SOURCE",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "REQUESTED",
+          "to": "FAILED",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "VALIDATING_SOURCE",
+          "to": "ACQUIRING_LOCK",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row. source_snapshot_id must be same-project AVAILABLE.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "VALIDATING_SOURCE",
+          "to": "FAILED",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row. source_snapshot_id must be same-project AVAILABLE.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "VALIDATING_SOURCE",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row. source_snapshot_id must be same-project AVAILABLE.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "ACQUIRING_LOCK",
+          "to": "RESTORING_CODE",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row. Under row locks atomically capture AVAILABLE PRE_RESTORE, immutable prior_active_generation, prior_snapshot_id, optional prior_route_generation plus prior_route_status, allocate target_generation and exactly one provisional RESTORE_RESULT; all fields must commit before any code/DB mutation.",
+          "effect": "Persist complete before-image journal and provisional result link; withdraw route only after this transaction commits.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "ACQUIRING_LOCK",
+          "to": "FAILED",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "ACQUIRING_LOCK",
+          "to": "TIMED_OUT",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "RESTORING_CODE",
+          "to": "RESTORING_DB",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "RESTORING_CODE",
+          "to": "ROLLING_BACK",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Persist failure evidence and journal; keep route withdrawn and old active_generation/current_snapshot authoritative until rollback closes.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "RESTORING_DB",
+          "to": "VERIFYING",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "RESTORING_DB",
+          "to": "ROLLING_BACK",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Persist failure evidence and journal; keep route withdrawn and old active_generation/current_snapshot authoritative until rollback closes.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "VERIFYING",
+          "to": "CUTTING_OVER",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Require verified staged code/SQLite/manifest/health and the existing provisional RESTORE_RESULT allocated before RESTORING_CODE; persist journal_phase=CUTOVER_PREPARED and journal_decision=PENDING while route stays withdrawn.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "VERIFYING",
+          "to": "ROLLING_BACK",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Persist failure evidence and journal; keep route withdrawn and old active_generation/current_snapshot authoritative until rollback closes.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "CUTTING_OVER",
+          "to": "SUCCEEDED",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row. In one PostgreSQL transaction lock PROJECT/WORKSPACE/PREVIEW_ROUTE, re-check prior generation, snapshot, route generation and route status, CAS-update all pointers, mark RESTORE_RESULT AVAILABLE, journal_decision=COMMIT, journal_phase=COMMITTED and cutover_committed_at; any mismatch rolls back everything.",
+          "effect": "After DB commit, controller reconciles target generation, verifies health, then resumes route; source and prior generation remain retained until journal closure.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "CUTTING_OVER",
+          "to": "ROLLING_BACK",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Persist failure evidence and journal; keep route withdrawn and old active_generation/current_snapshot authoritative until rollback closes.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "ROLLING_BACK",
+          "to": "ROLLED_BACK",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row. Require journal_decision=ROLLBACK and successful single-transaction restoration/verification of prior generation, snapshot, route generation and exact prior route status; mark the always-present provisional RESTORE_RESULT INVALID.",
+          "effect": "Set journal_phase=REVERSED, keep cutover_committed_at NULL, verify prior runtime/route health, then and only then restore prior_route_status; if prior status was not READY do not invent READY.",
+          "ac": "AC-VER-04"
+        },
+        {
+          "from": "ROLLING_BACK",
+          "to": "FAILED",
+          "guard": "Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.",
+          "effect": "Set journal_phase=MANUAL_INTERVENTION; mark the always-present provisional RESTORE_RESULT INVALID/quarantined, preserve before-image and failure evidence, keep route withdrawn and all mutations blocked. Never claim rollback success or resume traffic.",
+          "ac": "AC-VER-04"
+        }
+      ]
+    },
+    {
+      "field": "PREVIEW_ROUTE.route_status",
+      "owner": "Preview Gateway",
+      "guard_summary": "Owner/session/generation authorization plus workload and route readiness; stale routes fail closed.",
+      "states": [
+        {
+          "name": "DISABLED",
+          "initial": true,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Disabled"
+        },
+        {
+          "name": "STARTING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Starting"
+        },
+        {
+          "name": "NOT_READY",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Preparing preview"
+        },
+        {
+          "name": "READY",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Ready"
+        },
+        {
+          "name": "DEGRADED",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Needs attention"
+        },
+        {
+          "name": "ERROR",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Action required"
+        },
+        {
+          "name": "REVOKING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Preview Gateway",
+          "ui": "Revoking"
+        },
+        {
+          "name": "REVOKED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Preview Gateway",
+          "ui": "Revoked"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "DISABLED",
+          "to": "STARTING",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "DISABLED",
+          "to": "REVOKED",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "NOT_READY",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "READY",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists. Workspace health, exact-host one-time short-lived JWT/preview-cookie owner auth, Host allowlist and immutable same-project /api route verified.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "DEGRADED",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "ERROR",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "STARTING",
+          "to": "REVOKING",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "NOT_READY",
+          "to": "READY",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists. Workspace health, exact-host one-time short-lived JWT/preview-cookie owner auth, Host allowlist and immutable same-project /api route verified.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "NOT_READY",
+          "to": "DEGRADED",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "NOT_READY",
+          "to": "ERROR",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "NOT_READY",
+          "to": "REVOKING",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "READY",
+          "to": "DEGRADED",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "READY",
+          "to": "ERROR",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "READY",
+          "to": "REVOKING",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "READY",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists. Workspace health, exact-host one-time short-lived JWT/preview-cookie owner auth, Host allowlist and immutable same-project /api route verified.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "ERROR",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "DEGRADED",
+          "to": "REVOKING",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "ERROR",
+          "to": "STARTING",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "ERROR",
+          "to": "REVOKING",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "REVOKING",
+          "to": "REVOKED",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        },
+        {
+          "from": "REVOKING",
+          "to": "ERROR",
+          "guard": "Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-PRV-01–02 / AC-SEC-01"
+        }
+      ]
+    },
+    {
+      "field": "JOB_RUN.run_status",
+      "owner": "Platform scheduler",
+      "guard_summary": "Unique scheduled attempt; overlap guard, timeout and linked retry preserve immutable terminal history.",
+      "states": [
+        {
+          "name": "QUEUED",
+          "initial": true,
+          "terminal": false,
+          "owner": "Platform scheduler",
+          "ui": "Waiting"
+        },
+        {
+          "name": "RUNNING",
+          "initial": false,
+          "terminal": false,
+          "owner": "Platform scheduler",
+          "ui": "Running"
+        },
+        {
+          "name": "SUCCEEDED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Platform scheduler",
+          "ui": "Succeeded"
+        },
+        {
+          "name": "FAILED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Platform scheduler",
+          "ui": "Action required"
+        },
+        {
+          "name": "TIMED_OUT",
+          "initial": false,
+          "terminal": true,
+          "owner": "Platform scheduler",
+          "ui": "Action required"
+        },
+        {
+          "name": "CANCELLED",
+          "initial": false,
+          "terminal": true,
+          "owner": "Platform scheduler",
+          "ui": "Cancelled"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "QUEUED",
+          "to": "RUNNING",
+          "guard": "Job enabled and due; active-run partial unique constraint is clear; atomically set started_at and increment row_version.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-OPS-01"
+        },
+        {
+          "from": "QUEUED",
+          "to": "CANCELLED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-OPS-01"
+        },
+        {
+          "from": "RUNNING",
+          "to": "SUCCEEDED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Require failed_count=0; persist counts/result_json and finished_at. Target business state remains owned and audited by its service.",
+          "ac": "AC-OPS-01"
+        },
+        {
+          "from": "RUNNING",
+          "to": "FAILED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Persist counts, result_json, error code and finished_at; recovery creates a new JOB_RUN row linked by retry_of_run_id.",
+          "ac": "AC-OPS-01"
+        },
+        {
+          "from": "RUNNING",
+          "to": "TIMED_OUT",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Persist counts, result_json, error code and finished_at; recovery creates a new JOB_RUN row linked by retry_of_run_id.",
+          "ac": "AC-OPS-01"
+        },
+        {
+          "from": "RUNNING",
+          "to": "CANCELLED",
+          "guard": "Valid owner-authorized command. In the same PostgreSQL transaction: claim unique AUDIT_LOG(service_name,command_id), compare-and-swap aggregate row_version, and store accepted/rejected result; any conflict rolls back all. command_id dedup never replaces aggregate CAS.",
+          "effect": "Commit state CAS and immutable command/result audit atomically; retry returns the stored outcome without replay.",
+          "ac": "AC-OPS-01"
+        }
+      ]
+    }
+  ]
+}

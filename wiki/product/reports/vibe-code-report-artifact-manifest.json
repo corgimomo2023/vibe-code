@@ -1,0 +1,8 @@
+{
+  "artifacts": {
+    "vibe-code-no-code-poc-prd-and-delivery-plan.docx": "ba43e71db849138589cbc503cbdc9615e4d1b25b430d4f5119f9a78c8e988b97",
+    "vibe-code-poc-data-specification-and-schema.xlsx": "6a507dcd5e93006db8fceeb5cf1f9d2846dedeab0d966f8c3798f35ad89da461",
+    "vibe-code-poc-technical-design-and-runtime-architecture.docx": "63e80067a84c1ace418b7f09dc82d242fd5a1345a089ec22194a53778f167901"
+  },
+  "schema": "vibe-code-report-artifact-manifest/v1"
+}

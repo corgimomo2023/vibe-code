@@ -4,18 +4,21 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from docx import Document
 from openpyxl import load_workbook
+from report_diagrams import create_state_diagram
 
 PROJECT_ROOT = Path(os.environ.get('VIBE_CODE_ROOT', Path(__file__).resolve().parents[2]))
 ROOT = PROJECT_ROOT / 'wiki/product/reports'
 PRD = ROOT / 'vibe-code-no-code-poc-prd-and-delivery-plan.docx'
 TECH = ROOT / 'vibe-code-poc-technical-design-and-runtime-architecture.docx'
 XLSX = ROOT / 'vibe-code-poc-data-specification-and-schema.xlsx'
+MANIFEST = ROOT / 'vibe-code-report-artifact-manifest.json'
 
 
 def sha(path: Path) -> str:
@@ -26,14 +29,25 @@ def package_check(path: Path) -> None:
     assert path.exists() and path.stat().st_size > 10_000, path
     with zipfile.ZipFile(path) as z:
         assert z.testzip() is None, f'OOXML CRC failure: {path}'
-        names = set(z.namelist())
+        raw_names = z.namelist()
+        names = set(raw_names)
+        assert len(names) == len(raw_names), f'duplicate OOXML member: {path}'
         assert '[Content_Types].xml' in names
         if path.suffix == '.docx':
             assert 'word/document.xml' in names
         else:
             assert 'xl/workbook.xml' in names
+        dangerous_parts = ('vbaproject', 'externalink', 'embeddings/', 'activex', 'oleobject')
         for name in names:
-            assert not name.startswith('/') and '..' not in Path(name).parts
+            lower = name.lower()
+            assert not name.startswith('/') and '..' not in Path(name).parts and '\\' not in name
+            assert not any(part in lower for part in dangerous_parts), f'dangerous OOXML part: {name}'
+            if name.endswith('.rels'):
+                relationships = ET.fromstring(z.read(name))
+                for relationship in relationships:
+                    assert relationship.attrib.get('TargetMode') != 'External', (
+                        f'external OOXML relationship: {name} -> {relationship.attrib.get("Target")}'
+                    )
 
 
 def formula_cache_check(path: Path) -> None:
@@ -69,6 +83,20 @@ def normalized_text_sha(text: str) -> str:
     return hashlib.sha256(re.sub(r'\s+', ' ', text).strip().encode()).hexdigest()
 
 
+def document_semantic_sha(path: Path, text: str) -> str:
+    with zipfile.ZipFile(path) as archive:
+        media = [
+            (name, hashlib.sha256(archive.read(name)).hexdigest())
+            for name in sorted(archive.namelist())
+            if name.startswith('word/media/')
+        ]
+    payload = {
+        'normalized_text': re.sub(r'\s+', ' ', text).strip(),
+        'media': media,
+    }
+    return hashlib.sha256(json.dumps(payload, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+
+
 def workbook_semantic_sha(wb) -> str:
     payload=[]
     for sheet in wb:
@@ -80,6 +108,13 @@ def workbook_semantic_sha(wb) -> str:
 def must(text: str, terms: list[str], label: str) -> None:
     missing = [x for x in terms if x not in text]
     assert not missing, f'{label} missing: {missing}'
+
+
+def must_without(text: str, required: list[str], forbidden: list[str], label: str) -> None:
+    must(text, required, label)
+    folded = text.casefold()
+    found = [term for term in forbidden if term.casefold() in folded]
+    assert not found, f'{label} contradictory/forbidden: {found}'
 
 
 def absent(text: str, terms: list[str], label: str) -> None:
@@ -119,15 +154,23 @@ def numbered_ids(text: str, prefix: str) -> set[str]:
 for f in (PRD, TECH, XLSX):
     package_check(f)
 formula_cache_check(XLSX)
+manifest = json.loads(MANIFEST.read_text())
+expected_artifacts = {artifact.name for artifact in (PRD, TECH, XLSX)}
+assert manifest.get('schema') == 'vibe-code-report-artifact-manifest/v1'
+assert set(manifest.get('artifacts', {})) == expected_artifacts
+for artifact in (PRD, TECH, XLSX):
+    assert manifest['artifacts'][artifact.name] == sha(artifact), f'binary manifest drift: {artifact.name}'
 
 prd, pt = doc_text(PRD)
 tech, tt = doc_text(TECH)
-assert normalized_text_sha(pt)=='102098b2c917bfe30055d4950ff4a0deb9b6371d30797eda37264d27d8658447', 'PRD canonical semantic digest mismatch'
-assert normalized_text_sha(tt)=='1dbad776f1c4b6656b95e8a2497f12758e1837ce0da9a35b0f9e94b0f89222f9', 'Technical canonical semantic digest mismatch'
-assert 25 <= len(prd.tables) <= 40
-assert 20 <= len(tech.tables) <= 35
-assert 2500 <= len(pt.split()) <= 5000
-assert 2500 <= len(tt.split()) <= 5500
+assert document_semantic_sha(PRD, pt)=='6d7a890c10d8ca0c2ba40aa4fe661ae329fed6c2e1ea000951611ab5f820b2fd', 'PRD canonical semantic digest mismatch'
+assert document_semantic_sha(TECH, tt)=='1212be4f5110e9e7102a3f0c3b73a282ec6d5e78bee79f585c84b413d2351289', 'Technical canonical semantic digest mismatch'
+assert 35 <= len(prd.tables) <= 45
+assert 32 <= len(tech.tables) <= 42
+assert 5000 <= len(pt.split()) <= 7500
+assert 6000 <= len(tt.split()) <= 8500
+assert len(prd.inline_shapes)==21, 'PRD must include product flow, Vibe layout, 9 UC flows and 10 state diagrams'
+assert len(tech.inline_shapes)==17, 'Technical must include architecture/reload/UI, 10 states and 4 transaction diagrams'
 
 must(pt, [
     'Epic table', 'User Story table', 'Use Case summary', 'Feature list',
@@ -137,11 +180,14 @@ must(pt, [
     'F-14', 'US-27', 'AC-ID-03', 'Default Organization', 'Default OU', 'Default Department',
     'US-28', 'AC-VER-03', 'AC-VER-04', 'whole-app', 'Version 1',
     'Single-node K3s', 'owner-only', 'No Deploy button', '30 September 2026', '9 October 2026',
+    'Vibe page layout', 'Detailed Use Cases', 'Business Rule Register', 'Authoritative state diagrams',
+    'NestJS', 'Prisma', 'AdminJS', 'Redis', 'opaque HttpOnly Secure session cookie',
 ], 'PRD')
 absent(pt, [
     'kubectl', 'IngressRoute', 'PersistentVolumeClaim', 'containerd', 'runc',
     'uvicorn app.main:app', 'vite --host', 'hostPath', 'Docker broker', 'Docker Compose',
-    'PORT_ALLOCATION', 'guest_token_hash',
+    'PORT_ALLOCATION', 'guest_token_hash', 'Django', 'DRF', 'django_session', 'auth_user',
+    'guest preview', 'preview ticket', 'one-time ticket',
 ], 'PRD')
 
 must(tt, [
@@ -156,8 +202,10 @@ must(tt, [
     'Cline session continuity and stuck recovery', 'Recover agent session', 'SPK-07',
     'Organization hierarchy', 'PROJECT.owner_id', 'TD-OPEN-10',
     'Whole-app versioning', 'workspace/<project-id>', 'SQLite online backup', 'SPK-08', 'TD-OPEN-11',
+    'Vibe page component and layout contract', 'Authoritative state diagrams', 'Transactional sequence diagrams',
+    'NestJS', 'Prisma', 'AdminJS', 'Redis', 'opaque HttpOnly Secure session cookie', 'short-lived JWT',
 ], 'Technical Design')
-absent(tt, ['Docker socket', 'privileged Docker broker', 'Nginx Proxy Manager', 'PORT_ALLOCATION'], 'Technical Design')
+absent(tt, ['Docker socket', 'privileged Docker broker', 'Nginx Proxy Manager', 'PORT_ALLOCATION', 'Django', 'DRF', 'django_session', 'auth_user', 'guest preview', 'preview ticket', 'one-time ticket'], 'Technical Design')
 
 # PRD stays product-first: technical implementation vocabulary belongs overwhelmingly in Technical Design.
 for term in ('containerd', 'runc', 'Uvicorn', 'Vite', 'WebSocket', 'PVC', 'NetworkPolicy'):
@@ -171,15 +219,36 @@ for d, label in ((prd, 'PRD'), (tech, 'TECH')):
     for table in d.tables:
         assert len(table.rows) >= 1 and len(table.columns) >= 1, f'empty table in {label}'
 
+use_case_fields={'Actors','Module','Layer','Preconditions','Main flow','Business Rules','Security Guard','Failure / Recovery','Acceptance evidence','Story trace'}
+detailed_uc=[]
+for table in prd.tables:
+    if tuple(cell.text.strip() for cell in table.rows[0].cells)==('Field','Definition') and any(row.cells[0].text.strip()=='Main flow' for row in table.rows[1:]):
+        detailed_uc.append(table)
+assert len(detailed_uc)==9
+for table in detailed_uc:
+    assert {row.cells[0].text.strip() for row in table.rows[1:]}==use_case_fields
+assert sum(p.text.startswith('Figure UC-') for p in prd.paragraphs)==9
+assert sum(p.text.startswith('Figure S-') for p in prd.paragraphs)==10
+assert sum(p.text.startswith('Figure TS-') for p in tech.paragraphs)==10
+assert sum(p.text.startswith('Figure TX-') for p in tech.paragraphs)==4
+auth_table=doc_table(tech, ('Flow','Credential','Store / authority','Lifetime','Revocation / failure'), 'Technical authentication/session boundary')
+assert len(auth_table.rows)>=6
+
 wb = load_workbook(XLSX, data_only=False)
-assert workbook_semantic_sha(wb)=='8b0c0bf6bdf65fb169b1a3c8b72803b1835e55c62d730413690416c151d4d2e4', 'XLSX canonical semantic digest mismatch'
+assert workbook_semantic_sha(wb)=='9d40a4a9ed6091d0cba58e552ce09624daf8d54256512d142f02de3f72091273', 'XLSX canonical semantic digest mismatch'
 assert len(wb.sheetnames) == 25
 required_sheets = {
-    'Overview','Entity Catalogue','Framework Tables','runtime','Relationships','Indexes',
+    'Overview','Entity Catalogue','Redis Key Catalogue','runtime','Relationships','Indexes',
     'Enum Catalogue','State Transitions','Run Pair Matrix','Error Exception Map',
     'Scheduled Jobs','Control Field Contract','Data Governance','Generated App Contract','Decisions'
 }
 assert required_sheets.issubset(set(wb.sheetnames))
+redis_ws=wb['Redis Key Catalogue']
+assert tuple(redis_ws.cell(6,c).value for c in range(1,7))==('Key Pattern','Purpose','Value Schema','TTL / Bound','Owner','Invalidation / Failure')
+redis_rows=[r for r in redis_ws.iter_rows(min_row=7,values_only=True) if r[0]]
+assert len(redis_rows)==6
+redis_text='\n'.join(str(value or '') for row in redis_rows for value in row)
+must(redis_text, ['session:{sid_hash}','session_version','absolute_expires_at','replay:service-jwt:{jti_hash}','missing Redis fails authentication closed','miss/outage reads PostgreSQL','never unlimited login'], 'Redis Key Catalogue')
 
 # The original 29/295 baseline changed only for the approved normalized organization hierarchy.
 entities = [r[0] for r in wb['Entity Catalogue'].iter_rows(min_row=7, values_only=True) if r[0]]
@@ -187,6 +256,8 @@ assert len(entities) == 31 and len(set(entities)) == 31
 assert 'RUNTIME_RESOURCE_REF' in entities
 assert 'ORGANIZATIONAL_UNIT' in entities
 assert 'AUTH_USER_ORG_MEMBERSHIP' in entities
+assert 'AUTH_KEYSET' in entities
+assert 'AUTH_CONTENT_TYPE' not in entities
 assert 'PORT_ALLOCATION' not in entities
 schema_sheets = ['platform_core','runtime','conversation','versioning','admission_auth','operations']
 column_rows = []
@@ -194,7 +265,7 @@ for name in schema_sheets:
     for r in wb[name].iter_rows(min_row=7, values_only=True):
         if r[1] and r[2]:
             column_rows.append((r[1], r[2], r))
-assert len(column_rows) == 321
+assert len(column_rows) == 324
 pairs = {(table, col) for table, col, _ in column_rows}
 for expected in {
     ('WORKSPACE','active_generation'), ('WORKSPACE','runtime_namespace'),
@@ -207,8 +278,10 @@ for expected in {
     ('CAPACITY_POOL','queue_timeout_seconds'), ('CAPACITY_POOL','fairness_policy'),
     ('CAPACITY_POOL','last_admitted_owner_id'),
     ('PREVIEW_AUTH_GRANT','route_id'), ('PREVIEW_AUTH_GRANT','owner_id'),
-    ('PREVIEW_AUTH_GRANT','session_key_hash'), ('PREVIEW_AUTH_GRANT','credential_hash'),
+    ('PREVIEW_AUTH_GRANT','session_key_hash'), ('PREVIEW_AUTH_GRANT','jwt_jti_hash'),
+    ('PREVIEW_AUTH_GRANT','signing_kid'), ('PREVIEW_AUTH_GRANT','credential_hash'),
     ('PREVIEW_AUTH_GRANT','audience_host'), ('PREVIEW_AUTH_GRANT','workspace_generation'),
+    ('PREVIEW_AUTH_GRANT','issued_at'),
     ('PREVIEW_AUTH_GRANT','ctrl_grant_status'), ('PREVIEW_AUTH_GRANT','ctrl_expires_at'),
     ('PREVIEW_ROUTE','workspace_generation'),
     ('PREVIEW_ROUTE','service_name'), ('PREVIEW_ROUTE','frontend_port_name'),
@@ -253,7 +326,8 @@ must(all_cells, [
     'OU/Department never grants access implicitly',
     'workspace_autosave_loop', 'USER_SAVE', 'RESTORE_RESULT', 'SNAPSHOT_CAPTURE_FAILED',
     'One branch per Save is rejected', 'SQLite online backup',
-    'one-time ticket', 'PREVIEW_AUTH_GRANT', 'CAPACITY_POOL', 'target_generation',
+    'NestJS', 'Prisma', 'AdminJS', 'Redis', 'AUTH_KEYSET', 'short-lived JWT', 'jwt_jti_hash',
+    'PREVIEW_AUTH_GRANT', 'CAPACITY_POOL', 'target_generation',
     'result_snapshot_id', 'prior_active_generation', 'prior_snapshot_id',
     'prior_route_generation', 'prior_route_status', 'journal_phase', 'journal_decision',
     'cutover_committed_at', 'write_revocation_json', 'CUTTING_OVER',
@@ -264,6 +338,7 @@ absent(all_cells, [
     'compose_project_name', 'PORT_ALLOCATION', 'guest_token_hash', 'guest_expires_at',
     'container_port', 'POC Docker host and load rig', 'guest_preview_expiry_sweep',
     'EXPORT_JOB', 'SKILL_VERSION', 'CAPABILITY_INSTALL', 'AC-PRJ-05',
+    'Django', 'DRF', 'django_session', 'auth_user', 'AUTH_CONTENT_TYPE',
 ], 'XLSX')
 
 # Formula/error/secret hygiene.
@@ -281,6 +356,47 @@ run_pairs = [r for r in wb['Run Pair Matrix'].iter_rows(min_row=7, values_only=T
 assert len(transitions) == 170
 assert len(run_pairs) == 16
 
+# The same repository contract renders both DOCX state diagrams and XLSX transition rows.
+state_contract=json.loads(Path(__file__).with_name('state_contract.json').read_text())
+contract_transitions=[
+    (machine['field'], edge['from'], edge['to'], machine['owner'], edge['guard'], edge['effect'], edge['ac'])
+    for machine in state_contract['machines'] for edge in machine['transitions']
+]
+assert contract_transitions==[tuple(str(value or '') for value in row[:7]) for row in transitions], 'state_contract.json drift from XLSX State Transitions'
+snapshot_transition_effects = [edge['effect'] for machine in state_contract['machines'] if machine['field'] == 'SNAPSHOT.snapshot_status' for edge in machine['transitions']]
+assert snapshot_transition_effects
+for effect in snapshot_transition_effects:
+    must(effect, ['artifact identity/content is immutable', 'snapshot_status changes only through canonical transitions'], 'SNAPSHOT transition immutability boundary')
+    absent(effect, ['AVAILABLE is immutable'], 'SNAPSHOT transition immutability boundary')
+
+# Re-render every canonical state machine and require the exact image bytes in
+# both DOCX packages. This prevents JSON + XLSX + digest rebinds from leaving
+# stale diagrams behind.
+with tempfile.TemporaryDirectory(prefix='vibe-state-verify-') as state_dir:
+    expected_state_hashes = []
+    for index, machine in enumerate(state_contract['machines'], 1):
+        rendered = Path(state_dir) / f'state-{index:02d}.png'
+        create_state_diagram(rendered, machine)
+        expected_state_hashes.append(hashlib.sha256(rendered.read_bytes()).hexdigest())
+    assert len(expected_state_hashes) == 10 and len(set(expected_state_hashes)) == 10
+    for document_path, label in ((PRD, 'PRD'), (TECH, 'Technical')):
+        with zipfile.ZipFile(document_path) as package:
+            media_hashes = [
+                hashlib.sha256(package.read(name)).hexdigest()
+                for name in package.namelist()
+                if name.startswith('word/media/')
+            ]
+        missing = [digest for digest in expected_state_hashes if media_hashes.count(digest) != 1]
+        assert not missing, f'{label} state diagrams do not exactly match state_contract.json: {missing}'
+contract_enum={
+    (machine['field'], state['name']): (
+        'Yes' if state['initial'] else '', 'Yes' if state['terminal'] else '', machine['owner']
+    )
+    for machine in state_contract['machines'] for state in machine['states']
+}
+xlsx_enum={(str(r[0]),str(r[1])):(str(r[2] or ''),str(r[3] or ''),str(r[4] or '')) for r in wb['Enum Catalogue'].iter_rows(min_row=7,values_only=True) if r[0]}
+assert contract_enum==xlsx_enum, 'state_contract.json drift from XLSX Enum Catalogue'
+
 # Location-bound critical contracts: decoy text elsewhere must not satisfy these.
 idx = {(str(r[0]), str(r[1])): r for r in wb['Indexes'].iter_rows(min_row=7, values_only=True) if r[0] and r[1]}
 restore_stage = ' '.join(map(str, idx[('RESTORE_JOB','ck_restore_stage_contract')]))
@@ -295,10 +411,20 @@ ref_proof = ' '.join(map(str, idx[('RUNTIME_RESOURCE_REF','ck_agent_writer_revoc
 must(ref_proof, ['agent_run_id', 'pod_uid', 'job_uid', 'mount_write_probe:FAILED_CLOSED', 'Lease expiry alone never satisfies'], 'Indexes writer proof')
 run_unique = ' '.join(map(str, idx[('RUNTIME_RESOURCE_REF','uq_agent_job_run_ref')]))
 must(run_unique, ['agent_run_id', 'PARTIAL UNIQUE', 'resource_kind=JOB', 'Exactly one authoritative Agent Job proof row per run attempt'], 'Indexes unique run proof')
+critical_auth_contradictions = [
+    'not required', 'replay duplicates are allowed', 'replay is allowed', 'may be reused',
+    'reuse is allowed', 'signature verification is optional', 'audience binding is optional',
+    'shared bearer', 'fail open',
+]
 preview_auth = ' '.join(map(str, idx[('PREVIEW_AUTH_GRANT','ck_preview_auth_binding')]))
-must(preview_auth, ['owner_id', 'audience_host', 'workspace_generation', 'row_version CAS', 'shared PostgreSQL'], 'Indexes preview auth')
+must_without(preview_auth, ['owner_id', 'jwt_jti_hash', 'signing_kid', 'AUTH_KEYSET', 'issued_at', 'iat must equal immutable issued_at', 'exp must equal ctrl_expires_at', 'row_version CAS', 'hashed jti', 'denies replay across replicas'], critical_auth_contradictions, 'Indexes preview auth')
+preview_lifetime = ' '.join(map(str, idx[('PREVIEW_AUTH_GRANT','ck_preview_auth_lifetime')]))
+must_without(preview_lifetime, ['issued_at', 'ctrl_expires_at', "ctrl_expires_at > issued_at", "ctrl_expires_at <= issued_at + interval '60 seconds'", 'issued_at is immutable'], critical_auth_contradictions, 'Indexes preview JWT physical lifetime')
+snapshot_artifacts = ' '.join(map(str, idx[('SNAPSHOT','ck_snapshot_artifact_completeness')]))
+must(snapshot_artifacts, ['artifact identity and content fields are immutable', 'snapshot_status may change only through the canonical AVAILABLE→INVALID or AVAILABLE→DELETED transitions'], 'Snapshot artifact/status immutability boundary')
+absent(snapshot_artifacts, ['AVAILABLE rows are immutable'], 'Snapshot artifact/status immutability boundary')
 contracts = {str(r[0]): ' '.join(str(v or '') for v in r) for r in wb['Generated App Contract'].iter_rows(min_row=7, values_only=True) if r[0]}
-must(contracts['Backend boundary'], ['PREVIEW_AUTH_GRANT', 'CAS-consume one-time tickets', 'exact-host cookie hashes', 'owner/session/generation', 'HTTP/WSS', 'shared expiry/revoke state', 'strips platform credentials'], 'Generated App Contract Backend boundary')
+must_without(contracts['Backend boundary'], ['opaque Redis-backed server-side session', 'AUTH_KEYSET kid/signature', 'CAS-consume jwt_jti_hash', 'exact-host cookie hashes', 'owner/session/project/generation', 'HTTP/WSS', 'shared expiry/revoke state', 'strips platform credentials'], critical_auth_contradictions, 'Generated App Contract Backend boundary')
 must(contracts['User Save'], ['initialization alone creates INITIAL Version 1', 'later idempotent user Save', 'USER_SAVE', 'no later Save may create INITIAL'], 'Generated App Contract User Save')
 must(contracts['Restore'], ['prior generation/snapshot/route generation/route status', 'provisional RESTORE_RESULT before mutation', 'Every early/late rollback', 'MANUAL_INTERVENTION'], 'Generated App Contract Restore')
 must(contracts['Template/runtime pin'], ['CAPACITY_POOL', 'PREVIEW_AUTH_GRANT', 'Stage 1 operational contracts', 'capability installation remains outside'], 'Generated App Contract admission boundary')
@@ -313,8 +439,8 @@ must(schema_sem('RESTORE_JOB','result_snapshot_id'), ['before code/DB mutation',
 must(schema_sem('RESTORE_JOB','ctrl_prior_route_status'), ['PREVIEW_ROUTE.ctrl_route_status before withdrawal', 'exact prior READY/NOT_READY/DISABLED', 'resume after rollback requires health verification'], 'Schema Restore route-status before-image')
 must(schema_sem('RUNTIME_RESOURCE_REF','agent_run_id'), ['Exact Agent attempt', 'FK → AGENT_RUN.id', 'required exactly when resource_kind=JOB'], 'Schema writer run binding')
 must(schema_sem('RUNTIME_RESOURCE_REF','write_revocation_json'), ['Durable old-writer revocation proof', 'Pod/Job UID', 'deletion-observed timestamp', 'mount/write probe', 'verified_at'], 'Schema writer proof')
-preview_schema='\n'.join(schema_sem('PREVIEW_AUTH_GRANT',c) for c in ('route_id','owner_id','session_key_hash','credential_hash','audience_host','workspace_generation','ctrl_grant_status','ctrl_expires_at','ctrl_row_version'))
-must(preview_schema, ['must equal route workspace project owner', 'immediate session rotation/revocation', 'one-time ticket hash with cookie hash', 'Exact normalized preview host', 'Mismatch denies immediately', 'ISSUED / CONSUMING / ACTIVE', 'Atomic consume/rotate/revoke'], 'Schema preview authorization')
+preview_schema='\n'.join(schema_sem('PREVIEW_AUTH_GRANT',c) for c in ('route_id','owner_id','session_key_hash','jwt_jti_hash','signing_kid','credential_hash','audience_host','workspace_generation','ctrl_grant_status','issued_at','ctrl_expires_at','ctrl_row_version'))
+must_without(preview_schema, ['must equal route workspace project owner', 'Redis platform session identity', 'one-time short-lived preview JWT jti', 'AUTH_KEYSET.kid', 'Active host-only preview-cookie', 'Exact normalized preview host', 'Mismatch denies immediately', 'ISSUED / CONSUMING / ACTIVE', 'Immutable JWT issuance time', 'iat must equal this persisted value', 'Atomic consume/rotate/revoke'], critical_auth_contradictions, 'Schema preview authorization')
 admission_schema='\n'.join(schema_sem('RESOURCE_LEASE',c) for c in ('capacity_pool_id','agent_run_id','workload_kind','ctrl_lease_status','queue_sequence','ctrl_expires_at','ctrl_row_version'))
 must(admission_schema, ['AGENT_JOB request', 'PREVIEW workload', 'independent components', 'QUEUED / RESERVED', 'Durable monotonically increasing order', 'Queue deadline while QUEUED', 'Atomic queue claim/release'], 'Schema admission queue')
 must(schema_sem('CAPACITY_POOL','last_admitted_owner_id'), ['Durable last owner', 'same pool-lock transaction as QUEUED→RESERVED', 'NULL bootstrap chooses smallest queued owner_id'], 'Schema fairness cursor')
@@ -372,10 +498,10 @@ preview_rows=[r for r in transitions if str(r[0])=='PREVIEW_AUTH_GRANT.grant_sta
 assert len(preview_rows)==13
 for r in preview_rows:
     guard=str(r[4] or ''); effect=str(r[5] or '')
-    must(guard, ['shared PostgreSQL', 'exact route/owner/host/generation/session binding', 'row_version compare-and-swap'], f'Preview transition {r[1]}->{r[2]} guard')
+    must_without(guard, ['Redis session/version', 'AUTH_KEYSET kid/signature', 'iss/aud/owner/session/project/host/generation/jti/iat/exp', 'shared PostgreSQL', 'row_version compare-and-swap'], critical_auth_contradictions, f'Preview transition {r[1]}->{r[2]} guard')
     assert effect and 'SEMANTIC_GUARD_REMOVED' not in effect, r[:3]
-must(entity_transition('PREVIEW_AUTH_GRANT.grant_status','ISSUED','CONSUMING'), ['consume the one-time ticket by CAS', 'second replica/replay', 'denied'], 'Preview ticket consume')
-must(entity_transition('PREVIEW_AUTH_GRANT.grant_status','CONSUMING','ACTIVE'), ['replace ticket credential_hash', 'host-only preview-cookie hash', 'without raw credential'], 'Preview cookie issue')
+must_without(entity_transition('PREVIEW_AUTH_GRANT.grant_status','ISSUED','CONSUMING'), ['consume jwt_jti_hash by CAS', 'second replica/replay', 'Raw JWT is never persisted'], critical_auth_contradictions, 'Preview JWT consume')
+must_without(entity_transition('PREVIEW_AUTH_GRANT.grant_status','CONSUMING','ACTIVE'), ['host-only preview-cookie hash', 'without JWT/cookie/session material'], critical_auth_contradictions, 'Preview cookie issue')
 
 # Recovery worker and atomic command ledger are operational, location-bound contracts.
 jobs={str(r[0]): r for r in wb['Scheduled Jobs'].iter_rows(min_row=7,values_only=True) if r[0]}
@@ -388,8 +514,8 @@ must(audit_dedup, ['same PostgreSQL transaction', 'aggregate ctrl_row_version CA
 acceptance_table=doc_table(prd, ('ID','Acceptance evidence'), 'PRD canonical Acceptance Register')
 prd_ac={row.cells[0].text.strip() for row in acceptance_table.rows[1:] if row.cells[0].text.strip()}
 assert len(prd_ac)==29 and all(re.fullmatch(r'AC-[A-Z]+-\d{2}',x) for x in prd_ac)
-trace_table=doc_table(tech, ('Product requirement','Technical section','Verification'), 'Technical traceability matrix')
-trace_text='\n'.join(row.cells[0].text for row in trace_table.rows[1:])
+trace_table=doc_table(tech, ('Use Case','Stories / Acceptance','Business Rules','Technical realization','Verification'), 'Technical Use Case realization matrix')
+trace_text='\n'.join(cell.text for row in trace_table.rows[1:] for cell in row.cells)
 tech_ac=ac_ids(trace_text)
 assert not (tech_ac - prd_ac), sorted(tech_ac - prd_ac)
 xlsx_ac = set()
@@ -407,18 +533,39 @@ uc_table=doc_table(prd, ('ID','Use Case','Actors','Stories'), 'PRD Use Case summ
 prd_uc={r.cells[0].text.strip(): numbered_ids(r.cells[3].text,'US') for r in uc_table.rows[1:]}
 assert set(prd_uc)=={f'UC-{i:02d}' for i in range(1,10)}
 assert set().union(*prd_uc.values())==set(story_ac), 'Every canonical Story must map to at least one PRD Use Case'
+rule_table=doc_table(prd, ('ID','Rule','Applies to','Enforcement / evidence'), 'PRD Business Rule Register')
+prd_rules={r.cells[0].text.strip() for r in rule_table.rows[1:] if r.cells[0].text.strip()}
+assert prd_rules=={f'BR-{i:02d}' for i in range(1,18)}
+uc_order=list(prd_uc)
+assert len(detailed_uc)==len(uc_order)
+detail_br={}
+for uc, table in zip(uc_order, detailed_uc, strict=True):
+    fields={row.cells[0].text.strip(): row.cells[1].text for row in table.rows[1:]}
+    detail_br[uc]=numbered_ids(fields['Business Rules'],'BR')
+register_br={uc:set() for uc in uc_order}
+for row in rule_table.rows[1:]:
+    rule_id=row.cells[0].text.strip()
+    for uc in numbered_ids(row.cells[2].text,'UC'):
+        assert uc in register_br, f'Business Rule {rule_id} references unknown {uc}'
+        register_br[uc].add(rule_id)
+
 tech_uc_rows={}
 for r in trace_table.rows[1:]:
     req=r.cells[0].text
     ucs=numbered_ids(req,'UC')
-    if not ucs:
-        continue
     assert len(ucs)==1, f'Each Technical trace row must identify exactly one UC: {req}'
     uc=next(iter(ucs)); assert uc not in tech_uc_rows, f'duplicate Technical trace row: {uc}'
-    tech_uc_rows[uc]=(numbered_ids(req,'US'),ac_ids(req))
+    story_acceptance=r.cells[1].text
+    tech_uc_rows[uc]=(
+        numbered_ids(story_acceptance,'US'),
+        ac_ids(story_acceptance),
+        numbered_ids(r.cells[2].text,'BR'),
+    )
 assert set(tech_uc_rows)==set(prd_uc)
+assert detail_br==register_br, f'PRD detailed/register Business Rule drift: {detail_br} != {register_br}'
+assert {uc: values[2] for uc, values in tech_uc_rows.items()}==detail_br, 'Technical/PRD per-UC Business Rule drift'
 for uc,stories in prd_uc.items():
-    tech_stories,tech_acs=tech_uc_rows[uc]
+    tech_stories,tech_acs,_tech_rules=tech_uc_rows[uc]
     assert tech_stories==stories, f'{uc} Story drift: expected {sorted(stories)}, got {sorted(tech_stories)}'
     expected_acs=set().union(*(story_ac[s] for s in stories))
     assert tech_acs==expected_acs, f'{uc} AC drift: expected {sorted(expected_acs)}, got {sorted(tech_acs)}'

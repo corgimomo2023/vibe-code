@@ -25,7 +25,7 @@ PRD_SHA = hashlib.sha256((REPORT_ROOT / Path(PRD_PATH).name).read_bytes()).hexdi
 TECH_SHA = hashlib.sha256((REPORT_ROOT / Path(TECH_PATH).name).read_bytes()).hexdigest()
 ER_DIR = Path(os.environ.get('VIBE_REPORT_ER_DIR', Path(tempfile.gettempdir()) / 'vibe-er'))
 ER_IMAGES = [
-    ('ER 1 Identity Runtime','ER-1 — Identity, RBAC, configuration and ownership','Django identity/RBAC physical tables have explicit logical contracts; routine admin uses seeded roles and SYS_CONFIG is typed/non-secret.',ER_DIR / 'er-1-identity-runtime.png'),
+    ('ER 1 Identity Runtime','ER-1 — Identity, RBAC, Redis session and ownership','NestJS/Prisma/PostgreSQL identity and RBAC contracts, Redis opaque sessions, asymmetric JWT key metadata and restricted AdminJS actions are explicit.',ER_DIR / 'er-1-identity-runtime.png'),
     ('ER 2 Conversation','ER-2 — Conversation, agent execution and snapshots','Conversation history, immutable run/event evidence and reusable accepted snapshots.',ER_DIR / 'er-2-conversation-version.png'),
     ('ER 3 Version Ops','ER-3 — Restore journal and preview authorization','Restore captures prior generation, snapshot, route generation/status and a provisional result before mutation; shared preview auth supports cross-replica replay denial.',ER_DIR / 'er-3-version-operations.png'),
     ('ER 4 Ops Audit','ER-4 — Admission, runtime proof and operations','Durable Preview/Agent component queue rows serialize global admission; Agent write-revocation proof is uniquely bound to the exact run.',ER_DIR / 'er-4-ops-audit.png'),
@@ -45,70 +45,72 @@ HEADERS = ['Spec Track Change Date','Table Name','Column Name','UI Attribute Nam
 
 # table -> metadata
 table_meta = {
-'AUTH_USER':('platform_core','Django-managed POC identity and authorization reference','Django auth / Platform'),
-'ORGANIZATIONAL_UNIT':('platform_core','Future-ready Organization, OU and Department hierarchy; no implicit project authorization','Django control plane'),
-'AUTH_USER_ORG_MEMBERSHIP':('platform_core','Effective-dated user membership in an organizational unit','Django control plane'),
-'AUTH_SESSION':('platform_core','Django-managed server-side login session with expiry','Django auth / Platform'),
-'AUTH_ROLE':('platform_core','Named platform role mapped to Django Group','Django auth / Platform'),
-'AUTH_PERMISSION':('platform_core','Allowlisted platform permission mapped to Django Permission','Django auth / Platform'),
-'AUTH_CONTENT_TYPE':('platform_core','Framework model identity required by Django Permission','Django contenttypes'),
-'AUTH_USER_ROLE':('platform_core','Explicit user-to-role assignment','Django auth / Platform'),
-'AUTH_ROLE_PERMISSION':('platform_core','Explicit role-to-permission assignment','Django auth / Platform'),
-'AUTH_LOGIN_HISTORY':('platform_core','Append-only successful and denied authentication evidence','Django auth / Audit'),
-'SYS_CONFIG':('platform_core','Typed allowlisted non-secret platform configuration','Django control plane'),
-'PROJECT':('platform_core','User-owned no-code project and immutable artifact locks','Django control plane'),
+'AUTH_USER':('platform_core','Prisma-managed platform identity and authorization account','NestJS identity / Prisma'),
+'ORGANIZATIONAL_UNIT':('platform_core','Future-ready Organization, OU and Department hierarchy; no implicit project authorization','NestJS control plane / Prisma'),
+'AUTH_USER_ORG_MEMBERSHIP':('platform_core','Effective-dated user membership in an organizational unit','NestJS control plane / Prisma'),
+'AUTH_SESSION':('platform_core','Opaque browser server-side session with bounded idle and absolute expiry','Redis session service'),
+'AUTH_ROLE':('platform_core','Named platform role','NestJS RBAC / Prisma'),
+'AUTH_PERMISSION':('platform_core','Allowlisted resource/action platform permission','NestJS RBAC / Prisma'),
+'AUTH_KEYSET':('platform_core','Public metadata and secret reference for asymmetric JWT signing-key rotation','NestJS token service / Prisma'),
+'AUTH_USER_ROLE':('platform_core','Explicit user-to-role assignment','NestJS RBAC / Prisma'),
+'AUTH_ROLE_PERMISSION':('platform_core','Explicit role-to-permission assignment','NestJS RBAC / Prisma'),
+'AUTH_LOGIN_HISTORY':('platform_core','Append-only successful and denied authentication evidence','NestJS identity / Audit'),
+'SYS_CONFIG':('platform_core','Typed allowlisted non-secret platform configuration','NestJS control plane / Prisma'),
+'PROJECT':('platform_core','User-owned no-code project and immutable artifact locks','NestJS control plane'),
 'TEMPLATE_VERSION':('platform_core','Immutable approved generated-app template version','Platform super admin'),
-'WORKSPACE':('runtime','Per-project K3s runtime intent, observation, heartbeat and quota metadata','Runtime Controller + Django intent'),
+'WORKSPACE':('runtime','Per-project K3s runtime intent, observation, heartbeat and quota metadata','Runtime Controller + NestJS intent'),
 'RESOURCE_LEASE':('runtime','Bounded K3s admission-pool capacity reservation for a workspace','Runtime Controller'),
-'MUTATION_LEASE':('runtime','Single-project mutation serialization lease','Django control plane'),
+'MUTATION_LEASE':('runtime','Single-project mutation serialization lease','NestJS control plane'),
 'PREVIEW_ROUTE':('runtime','Authenticated owner-only mutable preview route','Preview Gateway'),
 'RUNTIME_RESOURCE_REF':('runtime','Allowlisted K3s resource reference owned by a workspace generation','Runtime Controller'),
 'WORKSPACE_USAGE_SAMPLE':('runtime','Measured CPU/RAM/disk/network evidence','Metrics collector'),
-'CHAT_THREAD':('conversation','One user session and exactly one context window for a project','Django control plane'),
-'CHAT_MESSAGE':('conversation','Authoritative user-visible and rich-block message history','Django control plane'),
+'CHAT_THREAD':('conversation','One user session and exactly one context window for a project','NestJS control plane'),
+'CHAT_MESSAGE':('conversation','Authoritative user-visible and rich-block message history','NestJS control plane'),
 'AGENT_RUN':('conversation','One immutable agent execution attempt and outcome','Agent orchestrator'),
 'AGENT_EVENT':('conversation','Ordered durable run event and usage stream','Agent event bridge'),
 'SNAPSHOT':('versioning','Reusable immutable code+SQLite+lock version asset','Snapshot service'),
 'RESTORE_JOB':('versioning','One restore attempt; source snapshot remains unchanged','Restore service'),
 'CAPACITY_POOL':('admission_auth','Versioned global admission pool and resource profile','Admission controller'),
 'PREVIEW_AUTH_GRANT':('admission_auth','Shared PostgreSQL-backed one-time preview credential grant','Preview Gateway'),
-'ERROR_EVENT':('operations','Stable user-safe error plus redacted technical evidence','Owning service / Django'),
+'ERROR_EVENT':('operations','Stable user-safe error plus redacted technical evidence','Owning service / NestJS'),
 
 'JOB':('operations','Allowlisted recurring scheduler/reconciler job definition','Platform scheduler'),
 'JOB_RUN':('operations','Immutable execution attempt for one JOB definition','Platform scheduler'),
 'AUDIT_LOG':('operations','Append-only privileged action, security decision and state-transition evidence','Audit service'),
 }
 
-# Explicit logical-to-physical mapping. USER is avoided because it is a SQL keyword;
-# AUTH_USER is the logical entity and auth_user is Django's physical table.
-framework_physical = {
-    'AUTH_USER':'auth_user', 'AUTH_SESSION':'django_session',
-    'AUTH_ROLE':'auth_group', 'AUTH_PERMISSION':'auth_permission',
-    'AUTH_CONTENT_TYPE':'django_content_type',
-    'AUTH_USER_ROLE':'auth_user_groups', 'AUTH_ROLE_PERMISSION':'auth_group_permissions',
-}
-physical_tables = {
-    **framework_physical,
-    **{name:f"vibe_{name.lower()}" for name in table_meta if name not in framework_physical},
-}
+# Prisma maps every PostgreSQL model to an explicit semantic table. AUTH_SESSION is
+# the one non-relational logical contract and is represented by a Redis key pattern.
+physical_tables = {name:f"vibe_{name.lower()}" for name in table_meta}
+physical_tables.update({
+    'AUTH_USER':'platform_user',
+    'AUTH_USER_ORG_MEMBERSHIP':'platform_user_org_membership',
+    'AUTH_ROLE':'platform_role',
+    'AUTH_PERMISSION':'platform_permission',
+    'AUTH_KEYSET':'platform_auth_keyset',
+    'AUTH_USER_ROLE':'platform_user_role',
+    'AUTH_ROLE_PERMISSION':'platform_role_permission',
+    'AUTH_LOGIN_HISTORY':'platform_login_history',
+})
+physical_tables['AUTH_SESSION'] = 'session:{sid_hash}'
 
 # Helpers for concise column definitions.
-def c(name, dtype, length='', key='', null='NOT NULL', auto='', idx='', default='', module='', desc='', notes='', valid='', ui=''):
+def c(name: str, dtype: str, length: Any='', key: str='', null: str='NOT NULL', auto: str='', idx: str='', default: Any='', module: str='', desc: str='', notes: str='', valid: str='', ui: str='') -> dict[str, Any]:
     return dict(name=name,dtype=dtype,length=length,key=key,null=null,auto=auto,idx=idx,default=default,module=module,desc=desc,notes=notes,valid=valid,ui=ui)
 
 schema: dict[str,list[dict[str,Any]]] = {
 'AUTH_USER':[
- c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','Identity','Django user identifier','Managed by Django auth'),
- c('username','varchar',150,'UK','NOT NULL','','UNIQUE','', 'Identity','Local POC sign-in name','','Django username validation'),
- c('first_name','varchar',150,'','NOT NULL','','','', 'Identity','Given name for administration and audit display','May be blank; never used as an authorization key'),
- c('last_name','varchar',150,'','NOT NULL','','','', 'Identity','Family name for administration and audit display','May be blank; never used as an authorization key'),
+ c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','Identity','Platform user identifier','Prisma BigInt; never expose as an authorization substitute for object checks'),
+ c('username','varchar',150,'UK','NOT NULL','','UNIQUE','', 'Identity','Normalized local POC sign-in name','NestJS identity validation; case-folded uniqueness'),
+ c('display_name','varchar',200,'','NOT NULL','','','', 'Identity','Administration and audit display name','Never used as an authorization key'),
  c('email','varchar',254,'','NOT NULL','','INDEX','', 'Identity','Administrative contact/login recovery address','POC uniqueness policy is DECISION REQUIRED; do not infer identity from email alone'),
- c('password','varchar',128,'','NOT NULL','','','', 'Identity','Django encoded password hash','Never export raw credential; sample value is [HASHED_BY_DJANGO]'),
- c('is_active','boolean','N/A','','NOT NULL','','','TRUE','Identity','Whether login is permitted'),
- c('is_staff','boolean','N/A','','NOT NULL','','','FALSE','Identity','Restricted Django Admin eligibility'),
- c('is_superuser','boolean','N/A','','NOT NULL','','','FALSE','Identity','Django superuser marker','Use least privilege and audited access'),
- c('date_joined','timestamptz','N/A','','NOT NULL','','','CURRENT_TIMESTAMP','Identity','Account creation time'),
- c('last_login','timestamptz','N/A','','NULL','','','','Identity','Last successful login time'),
+ c('password_hash','varchar',255,'','NOT NULL','','','', 'Identity','Argon2id encoded password hash','Never export raw credential or hash; parameters are security configuration'),
+ c('is_active','boolean','N/A','','NOT NULL','','','TRUE','Identity','Whether future login is permitted','FALSE also triggers explicit Redis session revocation workflow'),
+ c('session_version','integer','N/A','','NOT NULL','','','0','Identity','Global session invalidation counter','Increment on password reset, role-sensitive revoke or account disable'),
+ c('created_at','timestamptz','N/A','','NOT NULL','','','CURRENT_TIMESTAMP','Audit','Account creation time'),
+ c('updated_at','timestamptz','N/A','','NOT NULL','','','CURRENT_TIMESTAMP','Audit','Last account metadata change'),
+ c('last_login_at','timestamptz','N/A','','NULL','','','','Identity','Last successful login time'),
+ c('row_version','integer','N/A','','NOT NULL','','','0','Concurrency','Optimistic concurrency counter for AdminJS/NestJS commands'),
 ],
 'ORGANIZATIONAL_UNIT':[
  c('id','uuid','N/A','PK','NOT NULL','','PK / B-tree','gen_random_uuid()','Organization','Organizational unit identifier'),
@@ -132,34 +134,34 @@ schema: dict[str,list[dict[str,Any]]] = {
  c('updated_at','timestamptz','N/A','','NOT NULL','','','CURRENT_TIMESTAMP','Audit','Last update time'),
 ],
 'AUTH_SESSION':[
- c('session_key','varchar',40,'PK','NOT NULL','','PK / B-tree','','Identity','Opaque Django session identifier','Never display, export or log'),
- c('session_data','text','N/A','','NOT NULL','','','','Identity','Framework-managed signed session payload','Confidential; no direct application query or sample value'),
- c('expire_date','timestamptz','N/A','','NOT NULL','','INDEX','','Identity','Server-side session expiry','django_session_cleanup deletes expired rows'),
+ c('sid_hash','char',64,'PK','NOT NULL','','PK / Redis key','','Identity','SHA-256 hash of the opaque browser session identifier','Redis key is session:{sid_hash}; raw session ID exists only in the __Host-vibe_session cookie'),
+ c('payload_json','json','N/A','','NOT NULL','','','','Identity','Versioned Redis session payload','Contains user_id, session_version, CSRF hash, created/last-seen/absolute expiry and hashed client evidence; never a self-contained authorization token'),
+ c('expires_at','timestamptz','N/A','','NOT NULL','','TTL','','Identity','Logical idle expiry mirrored by Redis TTL','Absolute expiry in payload cannot be extended; Redis outage fails current authentication closed'),
 ],
 'AUTH_ROLE':[
- c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Django Group identifier','Framework-managed auth_group'),
+ c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Platform role identifier','Prisma model AUTH_ROLE'),
  c('name','varchar',150,'UK','NOT NULL','','UNIQUE','','RBAC','Stable role name','Seed VIBE_USER and PLATFORM_ADMIN; names are code-reviewed'),
 ],
 'AUTH_PERMISSION':[
- c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Django Permission identifier','Framework-managed auth_permission'),
+ c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Platform permission identifier','Prisma model AUTH_PERMISSION'),
  c('name','varchar',255,'','NOT NULL','','','','RBAC','Human-readable permission name'),
- c('content_type_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Django content type','FK → AUTH_CONTENT_TYPE.id (physical django_content_type.id); framework-owned'),
- c('codename','varchar',100,'','NOT NULL','','UNIQUE(content_type_id, codename)','','RBAC','Stable permission codename','Allowlisted by migration; no runtime-created arbitrary permission'),
+ c('resource','varchar',100,'','NOT NULL','','INDEX','','RBAC','Allowlisted resource or command family','Examples PROJECT, SYS_CONFIG, RECOVERY_COMMAND; no arbitrary model access'),
+ c('action','varchar',100,'','NOT NULL','','UNIQUE(resource, action)','','RBAC','Stable allowlisted action','Code-owned and enforced by NestJS guards; AdminJS visibility is not authorization'),
 ],
-'AUTH_CONTENT_TYPE':[
- c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Django content-type identifier','Framework-managed django_content_type'),
- c('app_label','varchar',100,'','NOT NULL','','INDEX','','RBAC','Owning Django application label'),
- c('model','varchar',100,'','NOT NULL','','UNIQUE(app_label, model)','','RBAC','Framework model key','UNIQUE(app_label, model)'),
+'AUTH_KEYSET':[
+ c('kid','varchar',64,'PK','NOT NULL','','PK / B-tree','','Token security','Public signing-key identifier','JWT header kid; immutable'),
+ c('public_jwk','jsonb','N/A','','NOT NULL','','','','Token security','Public JWK for verification','Private material never enters PostgreSQL; secret_ref points to approved secret store'),
+ c('metadata_json','jsonb','N/A','','NOT NULL','','INDEX','','Token security','algorithm, purpose, status, secret_ref, not_before and not_after','Asymmetric only; one active key per purpose; audited overlap/retirement'),
 ],
 'AUTH_USER_ROLE':[
- c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Assignment row identifier','Framework-managed auth_user_groups'),
+ c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Assignment row identifier','Prisma-managed join model'),
  c('user_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Assigned account','FK → AUTH_USER.id'),
- c('group_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Assigned platform role','FK → AUTH_ROLE.id; UNIQUE(user_id, group_id)'),
+ c('role_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Assigned platform role','FK → AUTH_ROLE.id; UNIQUE(user_id, role_id)'),
 ],
 'AUTH_ROLE_PERMISSION':[
- c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Role-permission row identifier','Framework-managed auth_group_permissions'),
- c('group_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Platform role','FK → AUTH_ROLE.id'),
- c('permission_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Allowlisted permission','FK → AUTH_PERMISSION.id; UNIQUE(group_id, permission_id)'),
+ c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','RBAC','Role-permission row identifier','Prisma-managed join model'),
+ c('role_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Platform role','FK → AUTH_ROLE.id'),
+ c('permission_id','bigint','N/A','FK','NOT NULL','','INDEX','','RBAC','Allowlisted permission','FK → AUTH_PERMISSION.id; UNIQUE(role_id, permission_id)'),
 ],
 'AUTH_LOGIN_HISTORY':[
  c('id','bigint','N/A','PK','NOT NULL','Yes','PK / B-tree','','Identity audit','Authentication attempt identifier'),
@@ -410,12 +412,15 @@ schema: dict[str,list[dict[str,Any]]] = {
  c('id','uuid','N/A','PK','NOT NULL','','PK / B-tree','gen_random_uuid()','Preview auth','Grant identifier'),
  c('route_id','uuid','N/A','FK','NOT NULL','','INDEX','','Preview auth','Bound preview route','FK → PREVIEW_ROUTE.id'),
  c('owner_id','bigint','N/A','FK','NOT NULL','','INDEX','','Preview auth','Bound project owner','FK → AUTH_USER.id; must equal route workspace project owner'),
- c('session_key_hash','char',64,'','NOT NULL','','INDEX','','Preview auth','Keyed hash of platform session identity','Supports immediate session rotation/revocation without storing session material'),
- c('credential_hash','char',64,'','NOT NULL','','UNIQUE','','Preview auth','Current ticket or preview-cookie credential hash','Atomic ISSUED→CONSUMING replaces one-time ticket hash with cookie hash; raw credential never stored'),
+ c('session_key_hash','char',64,'','NOT NULL','','INDEX','','Preview auth','Keyed hash of Redis platform session identity','Supports immediate session_version rotation/revocation without storing session material'),
+ c('jwt_jti_hash','char',64,'','NOT NULL','','UNIQUE','','Preview auth','Hash of the one-time short-lived preview JWT jti','JWT payload/token is never persisted; one grant and one CAS winner per jti'),
+ c('signing_kid','varchar',64,'FK','NOT NULL','','INDEX','','Preview auth','Asymmetric signing key identifier','FK → AUTH_KEYSET.kid; key purpose must be PREVIEW_EXCHANGE and valid at issuance'),
+ c('credential_hash','char',64,'','NULL','','UNIQUE','','Preview auth','Active host-only preview-cookie credential hash','ISSUED stores no cookie hash; successful one-time JWT exchange atomically stores cookie hash and consumes jti'),
  c('audience_host','varchar',253,'','NOT NULL','','INDEX','','Preview auth','Exact normalized preview host','Must match PREVIEW_ROUTE.route_key and approved base domain'),
  c('workspace_generation','integer','N/A','','NOT NULL','','INDEX','','Preview auth','Bound active workspace generation','Mismatch denies immediately'),
  c('grant_status','varchar',16,'','NOT NULL','','INDEX',"'ISSUED'",'Preview auth','ISSUED / CONSUMING / ACTIVE / ROTATING / EXPIRED / REVOKED / FAILED','','Enum PREVIEW_AUTH_GRANT.grant_status'),
- c('expires_at','timestamptz','N/A','','NOT NULL','','INDEX','','Preview auth','Short absolute expiry','Expired ticket/cookie fails closed'),
+ c('issued_at','timestamptz','N/A','','NOT NULL','','INDEX','','Preview auth','Immutable JWT issuance time','JWT iat must equal this persisted value; set once when the grant row is created'),
+ c('expires_at','timestamptz','N/A','','NOT NULL','','INDEX','','Preview auth','Short absolute expiry','Expired JWT/cookie fails closed'),
  c('row_version','integer','N/A','','NOT NULL','','','0','Concurrency','Atomic consume/rotate/revoke token'),
 ],
 'ERROR_EVENT':[
@@ -502,7 +507,7 @@ graphs = {
 'JOB_RUN.run_status': {'QUEUED':['RUNNING','CANCELLED'],'RUNNING':['SUCCEEDED','FAILED','TIMED_OUT','CANCELLED'],'SUCCEEDED':[],'FAILED':[],'TIMED_OUT':[],'CANCELLED':[]},
 }
 owners = {
-'PROJECT.lifecycle_status':'Django control plane','WORKSPACE.desired_status':'Django command/policy','WORKSPACE.observed_status':'Runtime Controller','AGENT_RUN.execution_status':'Agent orchestrator','AGENT_RUN.outcome_status':'Validation/approval service','PREVIEW_AUTH_GRANT.grant_status':'Preview Gateway','SNAPSHOT.snapshot_status':'Snapshot service','RESTORE_JOB.restore_status':'Restore service','PREVIEW_ROUTE.route_status':'Preview Gateway','JOB_RUN.run_status':'Platform scheduler'}
+'PROJECT.lifecycle_status':'NestJS control plane','WORKSPACE.desired_status':'NestJS command/policy','WORKSPACE.observed_status':'Runtime Controller','AGENT_RUN.execution_status':'Agent orchestrator','AGENT_RUN.outcome_status':'Validation/approval service','PREVIEW_AUTH_GRANT.grant_status':'Preview Gateway','SNAPSHOT.snapshot_status':'Snapshot service','RESTORE_JOB.restore_status':'Restore service','PREVIEW_ROUTE.route_status':'Preview Gateway','JOB_RUN.run_status':'Platform scheduler'}
 
 legal_run_pairs = [
 ('REQUESTED','DRAFT','Initial request'),('QUEUED','DRAFT','Admission wait'),('PLANNING','DRAFT','Planning'),('BUILDING','DRAFT','Pre-validation build'),('CHECKING','DRAFT','Pre-approval checking'),('CHECKING','VALIDATED','Post-apply checking; APPLYING→CHECKING preserves VALIDATED'),('WAITING_APPROVAL','VALIDATED','Checks passed; user decision required'),('APPLYING','VALIDATED','Approved change being applied'),('PREPARING_PREVIEW','VALIDATED','Final preview verification'),('STOPPING','DRAFT','Stop preserves pre-validation phase'),('STOPPING','VALIDATED','Stop preserves post-validation phase'),('COMPLETED','ACCEPTED','Only from PREPARING_PREVIEW+VALIDATED'),('COMPLETED','REJECTED','Only from WAITING_APPROVAL+VALIDATED'),('STOPPED','ABORTED','Atomic STOPPING→STOPPED mapping'),('FAILED','FAILED','Atomic technical failure mapping'),('TIMED_OUT','FAILED','Atomic timeout mapping')]
@@ -517,11 +522,10 @@ relationships += [
  ('ORGANIZATIONAL_UNIT','parent_id','ORGANIZATIONAL_UNIT','id','0..1:N','RESTRICT','Hierarchy is ORGANIZATION → OU → DEPARTMENT; no cycle and no project grant implied'),
  ('AUTH_USER_ORG_MEMBERSHIP','user_id','AUTH_USER','id','N:1','CASCADE','POC user receives one current primary default membership'),
  ('AUTH_USER_ORG_MEMBERSHIP','org_unit_id','ORGANIZATIONAL_UNIT','id','N:1','RESTRICT','Membership is identity/policy metadata, not project authorization'),
- ('AUTH_PERMISSION','content_type_id','AUTH_CONTENT_TYPE','id','N:1','CASCADE','Framework content-type ownership'),
  ('AUTH_USER_ROLE','user_id','AUTH_USER','id','N:1','CASCADE','A user may hold only seeded platform roles'),
- ('AUTH_USER_ROLE','group_id','AUTH_ROLE','id','N:1','CASCADE','Role assignment is UNIQUE(user_id, group_id) and audited'),
- ('AUTH_ROLE_PERMISSION','group_id','AUTH_ROLE','id','N:1','CASCADE','Role owns allowlisted permission assignments'),
- ('AUTH_ROLE_PERMISSION','permission_id','AUTH_PERMISSION','id','N:1','CASCADE','Permission assignment is UNIQUE(group_id, permission_id)'),
+ ('AUTH_USER_ROLE','role_id','AUTH_ROLE','id','N:1','CASCADE','Role assignment is UNIQUE(user_id, role_id) and audited'),
+ ('AUTH_ROLE_PERMISSION','role_id','AUTH_ROLE','id','N:1','CASCADE','Role owns allowlisted permission assignments'),
+ ('AUTH_ROLE_PERMISSION','permission_id','AUTH_PERMISSION','id','N:1','CASCADE','Permission assignment is UNIQUE(role_id, permission_id)'),
  ('AUTH_LOGIN_HISTORY','user_id','AUTH_USER','id','0..1:N','SET NULL','Unknown/invalid usernames do not create user records'),
  ('SYS_CONFIG','updated_by_id','AUTH_USER','id','N:1','RESTRICT','Every accepted configuration change identifies the Platform admin'),
  ('WORKSPACE','capacity_pool_id','CAPACITY_POOL','id','N:1','RESTRICT','Pins one versioned approved resource profile and global capacity pool'),
@@ -529,20 +533,22 @@ relationships += [
  ('RESOURCE_LEASE','capacity_pool_id','CAPACITY_POOL','id','N:1','RESTRICT','Allocation locks this pool row and reserves slot_count atomically'),
  ('RESOURCE_LEASE','agent_run_id','AGENT_RUN','id','0..N:1','CASCADE','Required exactly for AGENT_JOB; NULL exactly for PREVIEW; separates component reservations'),
  ('RUNTIME_RESOURCE_REF','agent_run_id','AGENT_RUN','id','0..N:1','CASCADE','Required for Agent Job/Pod refs so write-revocation proof binds the exact attempt'),
- ('PREVIEW_AUTH_GRANT','route_id','PREVIEW_ROUTE','id','N:1','CASCADE','One-time ticket and cookie grant is bound to one route generation'),
+ ('PREVIEW_AUTH_GRANT','route_id','PREVIEW_ROUTE','id','N:1','CASCADE','One-time short-lived JWT and resulting host-only cookie grant bind to one route generation'),
  ('PREVIEW_AUTH_GRANT','owner_id','AUTH_USER','id','N:1','RESTRICT','Must equal the owner of the route workspace project'),
+ ('PREVIEW_AUTH_GRANT','signing_kid','AUTH_KEYSET','kid','N:1','RESTRICT','One-time JWT verifies with the recorded active PREVIEW_EXCHANGE key'),
  ('RESTORE_JOB','prior_snapshot_id','SNAPSHOT','id','0..1:N','RESTRICT','Durable journal before-image; same project and immutable after lock acquisition'),
 ]
 
 indexes=[]
 for t, cols in schema.items():
+    index_slug = 'redis_session' if t == 'AUTH_SESSION' else physical_tables[t]
     for col in cols:
-        if col['key'] == 'PK': indexes.append((t,f'pk_{t.lower()}',col['name'],'PRIMARY KEY','Unique, not null','Required'))
+        if col['key'] == 'PK': indexes.append((t,f'pk_{index_slug}',col['name'],'PRIMARY KEY','Unique, not null','Required'))
         # Composite/partial declarations are emitted once in the explicit block below;
         # do not accidentally turn them into misleading single-column UNIQUE indexes.
         if col['idx'] and not col['idx'].startswith('UNIQUE(') and not col['idx'].startswith('UNIQUE active('):
             kind='UNIQUE' if 'UNIQUE' in col['idx'] else 'INDEX'
-            indexes.append((t,f"{'uq' if kind=='UNIQUE' else 'ix'}_{t.lower()}_{col['name']}",col['name'],kind,col['idx'],'Required'))
+            indexes.append((t,f"{'uq' if kind=='UNIQUE' else 'ix'}_{index_slug}_{col['name']}",col['name'],kind,col['idx'],'Required'))
 # Explicit compound/partial contracts
 indexes += [
  ('PROJECT','uq_project_creation_request','owner_id, creation_request_id','UNIQUE','Idempotent project creation within Vibe-user ownership scope','Required'),
@@ -554,7 +560,7 @@ indexes += [
  ('SNAPSHOT','uq_snapshot_version_no','project_id, version_no','PARTIAL UNIQUE','WHERE version_no IS NOT NULL','User-visible versions are monotonic and unique within project'),
  ('SNAPSHOT','ix_snapshot_project_kind_time','project_id, snapshot_kind, created_at','INDEX','Find rotating autosave and saved-version history efficiently','Required'),
  ('SNAPSHOT','ck_snapshot_kind_version','snapshot_kind, version_no','CHECK / service validation','INITIAL requires version_no=1; USER_SAVE and RESTORE_RESULT require version_no>=2; AUTOSAVE, ACCEPTED_CHANGE and PRE_RESTORE require NULL version_no','Required'),
- ('SNAPSHOT','ck_snapshot_artifact_completeness','snapshot_status, git_commit, git_ref_name, sqlite_object_key, sqlite_sha256, manifest_json, manifest_sha256','CHECK / service validation','REQUESTED/CAPTURING may leave artifact results NULL; VALIDATING/AVAILABLE require every artifact field and canonical manifest/hash; AVAILABLE rows are immutable','Required'),
+ ('SNAPSHOT','ck_snapshot_artifact_completeness','snapshot_status, git_commit, git_ref_name, sqlite_object_key, sqlite_sha256, manifest_json, manifest_sha256','CHECK / service validation','REQUESTED/CAPTURING may leave artifact results NULL; VALIDATING/AVAILABLE require every artifact field and canonical manifest/hash. Once AVAILABLE, artifact identity and content fields are immutable; snapshot_status may change only through the canonical AVAILABLE→INVALID or AVAILABLE→DELETED transitions.','Required'),
  ('RESTORE_JOB','uq_restore_request','project_id, idempotency_key','UNIQUE','One Restore command/attempt per project retry key','Required'),
  ('RESTORE_JOB','uq_restore_result_snapshot','result_snapshot_id','PARTIAL UNIQUE','WHERE result_snapshot_id IS NOT NULL; one RESTORE_RESULT can close only one Restore job','Required'),
  ('RESTORE_JOB','ck_restore_stage_contract','restore_status, pre_restore_snapshot_id, target_generation, result_snapshot_id, prior_active_generation, prior_snapshot_id, prior_route_generation, prior_route_status, journal_phase, journal_decision, cutover_committed_at','CHECK / service validation','ACQUIRING_LOCK→RESTORING_CODE atomically captures PRE_RESTORE plus every applicable prior pointer and allocates exactly one provisional RESTORE_RESULT. result_snapshot_id is NULL only in REQUESTED/VALIDATING_SOURCE/ACQUIRING_LOCK and required from RESTORING_CODE onward, so every rollback has a result to mark INVALID. COMMITTED requires COMMIT marker; ROLLED_BACK requires REVERSED; rollback failure requires MANUAL_INTERVENTION and route withdrawn.','Required'),
@@ -566,7 +572,8 @@ indexes += [
  ('RESOURCE_LEASE','uq_live_agent_lease','agent_run_id','PARTIAL UNIQUE','WHERE workload_kind=AGENT_JOB AND lease_status IN (QUEUED,RESERVED)','One live Agent Job component request per exact run'),
  ('RESOURCE_LEASE','ix_capacity_queue_claim','capacity_pool_id, lease_status, queue_sequence','INDEX','Durable global queue rebuild and atomic ordered claim','Required'),
  ('PREVIEW_AUTH_GRANT','uq_preview_auth_active_session','route_id, session_key_hash','PARTIAL UNIQUE','WHERE ctrl_grant_status IN (ISSUED, CONSUMING, ACTIVE, ROTATING); one live grant per route/session','Required'),
- ('PREVIEW_AUTH_GRANT','ck_preview_auth_binding','owner_id, audience_host, workspace_generation, ctrl_grant_status, ctrl_expires_at','CHECK / service validation','Owner must equal route project owner; exact host and generation must match route; expired/revoked/failed denies. Atomic ctrl_row_version CAS consumes ticket once and replaces credential_hash with cookie hash in shared PostgreSQL.','Required'),
+ ('PREVIEW_AUTH_GRANT','ck_preview_auth_binding','owner_id, session_key_hash, jwt_jti_hash, signing_kid, audience_host, workspace_generation, ctrl_grant_status, issued_at, ctrl_expires_at, ctrl_row_version','CHECK / service validation','AUTH_KEYSET purpose/status/time and asymmetric signature must verify; JWT iss/exact aud/sub/session/project/generation/jti must match the row, iat must equal immutable issued_at and exp must equal ctrl_expires_at. Atomic ctrl_row_version CAS consumes hashed jti once, stores only the host-cookie hash and denies replay across replicas; every HTTP/WSS handshake revalidates shared expiry/revoke state.','Required'),
+ ('PREVIEW_AUTH_GRANT','ck_preview_auth_lifetime','issued_at, ctrl_expires_at','CHECK / service validation',"ctrl_expires_at > issued_at AND ctrl_expires_at <= issued_at + interval '60 seconds'; issued_at is immutable after row creation",'Required physical bound for the one-time preview JWT'),
  ('AGENT_RUN','ck_linked_retry_revocation','prior_attempt_id, execution_status','CHECK / service validation','A linked retry may enter REQUESTED only if prior attempt is terminal and exactly one Agent JOB RUNTIME_RESOURCE_REF with agent_run_id=prior_attempt_id has immutable observed_uid plus schema-valid write_revocation_json proving Kubernetes deletion and failed post-delete write probe.','Required'),
  ('RUNTIME_RESOURCE_REF','ck_agent_writer_revocation_proof','agent_run_id, resource_kind, observed_uid, write_revocation_json','CHECK / JSON Schema','Agent resource_kind=JOB requires agent_run_id and one proof object {pod_uid,job_uid,deletion_observed_at,mount_write_probe:FAILED_CLOSED,verifier_digest,verified_at}; before STOPPED/retry it must match that exact AGENT_RUN. Lease expiry alone never satisfies it.','Required'),
  ('RUNTIME_RESOURCE_REF','uq_runtime_resource_identity','namespace, resource_kind, resource_name, runtime_generation','UNIQUE','One reference per allowlisted K3s object generation','Required'),
@@ -574,11 +581,11 @@ indexes += [
  ('AUDIT_LOG','uq_audit_service_command','service_name, command_id','PARTIAL UNIQUE','WHERE command_id IS NOT NULL; command claim/result and aggregate row_version CAS commit in the same PostgreSQL transaction. Conflict rolls back state; retry returns the stored accepted/rejected outcome. AUDIT_LOG.command_id dedup never replaces aggregate CAS.','Required'),
  ('JOB_RUN','uq_job_run_due','job_id, scheduled_for','UNIQUE','One immutable attempt per logical due instant; retry uses a new scheduled_for and retry_of_run_id','Required'),
  ('JOB_RUN','uq_job_run_active','job_id','PARTIAL UNIQUE','WHERE run_status IN (QUEUED, RUNNING)','Skip overlap; no second active run per definition'),
- ('AUTH_PERMISSION','uq_auth_permission_content_codename','content_type_id, codename','UNIQUE','Django permission identity','Required'),
- ('AUTH_CONTENT_TYPE','uq_auth_content_type_app_model','app_label, model','UNIQUE','Django content-type identity','Required'),
- ('AUTH_USER_ROLE','uq_auth_user_role','user_id, group_id','UNIQUE','No duplicate role assignment','Required'),
- ('AUTH_ROLE_PERMISSION','uq_auth_role_permission','group_id, permission_id','UNIQUE','No duplicate permission grant','Required'),
- ('AUTH_LOGIN_HISTORY','ix_auth_login_history_user_time','user_id, occurred_at','INDEX','Account security review timeline','Required'),
+ ('AUTH_PERMISSION','uq_auth_permission_resource_action','resource, action','UNIQUE','Code-owned permission identity enforced by NestJS guards and Prisma','Required'),
+ ('AUTH_KEYSET','uq_auth_keyset_active_purpose',"(metadata_json->>'purpose')",'PARTIAL UNIQUE',"WHERE metadata_json->>'status' = 'ACTIVE'; one signing key per purpose with audited overlap handled before activation",'Required'),
+ ('AUTH_USER_ROLE','uq_platform_user_role','user_id, role_id','UNIQUE','No duplicate role assignment','Required'),
+ ('AUTH_ROLE_PERMISSION','uq_auth_role_permission','role_id, permission_id','UNIQUE','No duplicate permission grant','Required'),
+ ('AUTH_LOGIN_HISTORY','ix_platform_login_history_user_time','user_id, occurred_at','INDEX','Account security review timeline','Required'),
  ('ORGANIZATIONAL_UNIT','uq_org_unit_code','unit_code','UNIQUE','Stable unit code across Organization, OU and Department','Required'),
  ('ORGANIZATIONAL_UNIT','ck_org_unit_parent_type','parent_id, unit_type','CHECK / service validation','ORGANIZATION parent NULL; OU parent ORGANIZATION; DEPARTMENT parent OU; no cycle','Required'),
  ('AUTH_USER_ORG_MEMBERSHIP','uq_user_org_unit_membership','user_id, org_unit_id, effective_from','UNIQUE','No duplicate effective membership start','Required'),
@@ -588,10 +595,10 @@ indexes += [
 
 # Data governance and retention intentionally mark unresolved values rather than inventing policy.
 governance = [
-('AUTH_USER','Restricted / PII','Platform super admin','Hong Kong assumption','DECISION REQUIRED','Encrypted DB/backup','Never export password hash unless explicitly required by IAM migration; raw password never stored'),('AUTH_SESSION','Highly Restricted / Authentication','Platform super admin','Hong Kong assumption','Delete at expire_date; operational retention DECISION REQUIRED','Encrypted DB/backup; secure cookie carries opaque key only','session_key/session_data never displayed, logged, sampled or exported'),('PROJECT','Confidential','Vibe user','Hong Kong assumption','Active + soft-delete; purge duration DECISION REQUIRED','Encrypted DB/backup','Vibe-user-scoped access; goal may contain business context'),('WORKSPACE / leases / route / capacity','Internal / Security-sensitive','Platform super admin','Hong Kong assumption','Operational retention DECISION REQUIRED','Encrypted DB; raw route credentials never stored','Global serialized capacity allocation; K3s identifiers hidden from Vibe users'),('CHAT_THREAD / CHAT_MESSAGE','Confidential; Vibe-user content','Vibe user','Hong Kong/private endpoint required for restricted prompts','Project life + deletion retention DECISION REQUIRED','Encrypted DB/backup; TLS','Gateway-only model routing; unsupported residency route fails closed'),('AGENT_RUN / AGENT_EVENT','Confidential / Audit','Vibe user + Platform super admin','Hong Kong assumption','Project/audit retention DECISION REQUIRED','Encrypted DB/backup','Redact commands, credentials and technical detail from Vibe-user events'),('SNAPSHOT / RESTORE_JOB','Restricted; may contain full POC data','Vibe user','Hong Kong assumption','Retention is DATA-DEC-08 DECISION REQUIRED; no invented duration','Encrypted object store + hashes','Mutation lock; full before-image journal; one PostgreSQL pointer transaction; AUTOSAVE rotates separately'),('PREVIEW_AUTH_GRANT','Highly Restricted / Authentication','Platform super admin','Hong Kong assumption','Delete promptly after expiry/revocation; exact duration DECISION REQUIRED','Credential hash only in PostgreSQL; TLS','Raw ticket/cookie never logged or stored; shared atomic consume and revocation state'),('ERROR_EVENT','Restricted / Operational','Platform super admin','Hong Kong assumption','DECISION REQUIRED','Encrypted DB/backup','technical_context_json must be redacted and admin-only'),('WORKSPACE_USAGE_SAMPLE','Internal / Operational','Platform super admin','Hong Kong assumption','DECISION REQUIRED','Encrypted DB','PROVEN/MEASURED/PROJECTED must not be conflated'),('JOB / JOB_RUN','Internal / Operational','Platform super admin','Hong Kong assumption','Run history retention DECISION REQUIRED','Encrypted DB; allowlisted handlers; lease and overlap controls','Scheduler never bypasses state owner or exact transition graph'),('AUDIT_LOG','Restricted / Audit','Platform super admin','Hong Kong assumption','Audit retention DECISION REQUIRED','Append-only controls + encrypted DB','Privileged actions, security decisions, data corrections and accepted/denied/failed transitions retained; metadata redacted')]
+('AUTH_USER','Restricted / PII','Platform super admin','Hong Kong assumption','DECISION REQUIRED','Encrypted PostgreSQL/backup','Never export password_hash; AdminJS masks it and exposes only audited password-reset action'),('AUTH_SESSION','Highly Restricted / Authentication','Platform super admin','Hong Kong assumption','Redis TTL enforces bounded idle expiry; absolute expiry cannot slide','TLS + encrypted Redis persistence if enabled; secure cookie carries raw opaque ID only','sid_hash/payload/CSRF data never displayed, logged, sampled or exported; Redis outage fails authentication closed'),('AUTH_KEYSET','Restricted / Token security','Security owner','Hong Kong assumption','Retire public metadata only after all signed tokens expire and audit retention permits','Public JWK in PostgreSQL; private key only by secret_ref','AdminJS never renders private material; key activation/retirement is a named audited action'),('PROJECT','Confidential','Vibe user','Hong Kong assumption','Active + soft-delete; purge duration DECISION REQUIRED','Encrypted DB/backup','Vibe-user-scoped access; goal may contain business context'),('WORKSPACE / leases / route / capacity','Internal / Security-sensitive','Platform super admin','Hong Kong assumption','Operational retention DECISION REQUIRED','Encrypted DB; raw route credentials never stored','Global serialized capacity allocation; K3s identifiers hidden from Vibe users'),('CHAT_THREAD / CHAT_MESSAGE','Confidential; Vibe-user content','Vibe user','Hong Kong/private endpoint required for restricted prompts','Project life + deletion retention DECISION REQUIRED','Encrypted DB/backup; TLS','Gateway-only model routing; unsupported residency route fails closed'),('AGENT_RUN / AGENT_EVENT','Confidential / Audit','Vibe user + Platform super admin','Hong Kong assumption','Project/audit retention DECISION REQUIRED','Encrypted DB/backup','Redact commands, credentials and technical detail from Vibe-user events'),('SNAPSHOT / RESTORE_JOB','Restricted; may contain full POC data','Vibe user','Hong Kong assumption','Retention is DATA-DEC-08 DECISION REQUIRED; no invented duration','Encrypted object store + hashes','Mutation lock; full before-image journal; one PostgreSQL pointer transaction; AUTOSAVE rotates separately'),('PREVIEW_AUTH_GRANT','Highly Restricted / Authentication','Platform super admin','Hong Kong assumption','Delete promptly after expiry/revocation; exact duration DECISION REQUIRED','Credential hash only in PostgreSQL; TLS','Raw ticket/cookie never logged or stored; shared atomic consume and revocation state'),('ERROR_EVENT','Restricted / Operational','Platform super admin','Hong Kong assumption','DECISION REQUIRED','Encrypted DB/backup','technical_context_json must be redacted and admin-only'),('WORKSPACE_USAGE_SAMPLE','Internal / Operational','Platform super admin','Hong Kong assumption','DECISION REQUIRED','Encrypted DB','PROVEN/MEASURED/PROJECTED must not be conflated'),('JOB / JOB_RUN','Internal / Operational','Platform super admin','Hong Kong assumption','Run history retention DECISION REQUIRED','Encrypted DB; allowlisted handlers; lease and overlap controls','Scheduler never bypasses state owner or exact transition graph'),('AUDIT_LOG','Restricted / Audit','Platform super admin','Hong Kong assumption','Audit retention DECISION REQUIRED','Append-only controls + encrypted DB','Privileged actions, security decisions, data corrections and accepted/denied/failed transitions retained; metadata redacted')]
 
 samples = [
-('PROJECT','id','11111111-1111-4111-8111-111111111111','Safe illustrative UUID'),('PROJECT','owner_id','1001','Example Django user ID'),('PROJECT','name','Leave Request POC','Illustrative project'),('PROJECT','lifecycle_status','ACTIVE','Legal enum value'),('PROJECT','model_alias','Company Builder — Balanced','Alias only, no provider key'),('WORKSPACE','desired_status','STOPPED','Idle-stopped desired intent'),('WORKSPACE','observed_status','STOPPED','Runtime Controller observation'),('WORKSPACE','stop_reason','IDLE_TIMEOUT','Prevents reconciler auto-restart'),('CHAT_MESSAGE','role','USER','Safe enum'),('CHAT_MESSAGE','content_json','{"schema_version":1,"parts":[{"type":"text","text":"Add manager approval"}]}','No credential or personal data'),('AGENT_RUN','execution_status','COMPLETED','Legal terminal pair with ACCEPTED/REJECTED'),('AGENT_RUN','outcome_status','ACCEPTED','Legal with COMPLETED'),('SNAPSHOT','snapshot_status','AVAILABLE','Reusable after restore'),('SNAPSHOT','sqlite_object_key','projects/1111/snapshots/aaaa/app.sqlite.enc','Private object key; not URL'),('SNAPSHOT','sqlite_sha256','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','Illustrative only'),('RESTORE_JOB','restore_status','SUCCEEDED','Source snapshot remains AVAILABLE'),('CAPACITY_POOL','pool_key','stage1-single-node','Illustrative approved global pool'),('CAPACITY_POOL','resource_profile_json','{"schema_version":1,"cpu_millis":500,"memory_mib":1024,"pid_limit":256,"storage_mib":4096}','Synthetic bounded profile'),('PREVIEW_AUTH_GRANT','grant_status','ACTIVE','Hashed credential only; no token value'),('ERROR_EVENT','correlation_id','01JSAFEEXAMPLE0000000000000','Illustrative reference'),('ERROR_EVENT','technical_context_json','{"redacted":true,"stage":"workspace_start"}','No stack trace, secret or connection string'),('MUTATION_LEASE','token_hash','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','Hash only; raw token never persisted')]
+('PROJECT','id','11111111-1111-4111-8111-111111111111','Safe illustrative UUID'),('PROJECT','owner_id','1001','Example NestJS user ID'),('PROJECT','name','Leave Request POC','Illustrative project'),('PROJECT','lifecycle_status','ACTIVE','Legal enum value'),('PROJECT','model_alias','Company Builder — Balanced','Alias only, no provider key'),('WORKSPACE','desired_status','STOPPED','Idle-stopped desired intent'),('WORKSPACE','observed_status','STOPPED','Runtime Controller observation'),('WORKSPACE','stop_reason','IDLE_TIMEOUT','Prevents reconciler auto-restart'),('CHAT_MESSAGE','role','USER','Safe enum'),('CHAT_MESSAGE','content_json','{"schema_version":1,"parts":[{"type":"text","text":"Add manager approval"}]}','No credential or personal data'),('AGENT_RUN','execution_status','COMPLETED','Legal terminal pair with ACCEPTED/REJECTED'),('AGENT_RUN','outcome_status','ACCEPTED','Legal with COMPLETED'),('SNAPSHOT','snapshot_status','AVAILABLE','Reusable after restore'),('SNAPSHOT','sqlite_object_key','projects/1111/snapshots/aaaa/app.sqlite.enc','Private object key; not URL'),('SNAPSHOT','sqlite_sha256','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','Illustrative only'),('RESTORE_JOB','restore_status','SUCCEEDED','Source snapshot remains AVAILABLE'),('CAPACITY_POOL','pool_key','stage1-single-node','Illustrative approved global pool'),('CAPACITY_POOL','resource_profile_json','{"schema_version":1,"cpu_millis":500,"memory_mib":1024,"pid_limit":256,"storage_mib":4096}','Synthetic bounded profile'),('PREVIEW_AUTH_GRANT','grant_status','ACTIVE','Hashed credential only; no token value'),('ERROR_EVENT','correlation_id','01JSAFEEXAMPLE0000000000000','Illustrative reference'),('ERROR_EVENT','technical_context_json','{"redacted":true,"stage":"workspace_start"}','No stack trace, secret or connection string'),('MUTATION_LEASE','token_hash','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','Hash only; raw token never persisted')]
 
 samples += [
  ('WORKSPACE','git_main_branch','main','Server-owned latest saved-version mirror'),
@@ -608,15 +615,17 @@ decisions = [
 ('DEC-04','Ingress controller','Infrastructure','Week 1','K3s-packaged Traefik; standard Kubernetes routing resources preferred.','CONFIRMED'),
 ('DEC-05','Project runtime boundary and storage','Platform + Security','Week 1 spike','Confirm namespace/equivalent boundary, PVC StorageClass/access mode/UID/reclaim and backup.','DECISION REQUIRED'),
 ('DEC-06','Resource profile and idle timeout','Product + Infra','Week 2','Launch with conservative admission; 60-minute idle stop is provisional until measured.','DECISION REQUIRED'),
-('DEC-07','Preview DNS/TLS/auth','Network + Security','Week 2','Fixed contract: platform-session endpoint issues one-time ticket; exact preview host exchanges it for short-lived HttpOnly Secure SameSite=Strict host-only cookie bound to owner/project/generation/audience/session; gateway validates HTTP/WSS and strips platform credentials upstream.','CONFIRMED CONTRACT — implementation proof required'),
+('DEC-07','Preview DNS/TLS/auth','Network + Security','Week 2','Opaque Redis-backed browser session requests a one-time short-lived JWT bound to exact preview host, user/session/project/generation and jti; host exchanges once for separate host-only preview cookie; PostgreSQL grant CAS denies replay and gateway strips platform credentials.','CONFIRMED CONTRACT — implementation proof required'),
 ('DEC-08','Snapshot storage, generation cutover and retention','Product + Operations','Week 3','Approve snapshot store/retention/RPO/RTO and prove generation-root staging plus durable journaled pointer CAS with crash-at-every-step tests; do not invent duration.','DECISION REQUIRED'),
-('DEC-09','Generated-app template stack','Product + IT','Before implementation','React/Vite + FastAPI + SQLAlchemy/Alembic + SQLite; platform remains Django/DRF.','CONFIRMED'),
+('DEC-09','Generated-app template and platform stack','Product + IT','Before implementation','Generated app: React/Vite + FastAPI + SQLAlchemy/Alembic + SQLite. Platform: NestJS + Prisma + PostgreSQL + restricted AdminJS; Redis session/cache.','CONFIRMED'),
 ('DEC-10','Live update contract','Product + Platform','Week 2 spike','Vite HMR over WSS, Uvicorn reload and explicit restart/rebuild/approval classifier.','CONFIRMED'),
 ('DEC-11','Deploy/release lifecycle','Product + IT','Before Stage 2','Deploy, OCI publish, registry, stable route and rollback are Stage 2 only.','STAGE 2'),
 ('DEC-12','Cline stuck-session recovery','Platform + Product','Week 1 spike','Browser refresh reconnects only. Watchdog or owner recovery cancels the old Job/Pod and persists UID-bound write_revocation_json; linked retry is rejected until prior attempt is terminal and proof validates.','CONFIRMED CONTRACT — implementation proof required'),
 ('DEC-13','Organization hierarchy and project access','Product + Identity + Security','Before account provisioning','Seed Default Organization → Default OU → Default Department and one primary user membership. Stage 1 project access remains PROJECT.owner_id only; OU/Department never grants access implicitly.','CONFIRMED DIRECTION'),
 ('DEC-14','Whole-app versioning','Product + Platform + Data + Operations','Week 3 spike','main mirrors latest saved version; workspace/<project-id> holds active work; rotating interval AUTOSAVE and numbered Save/Restore bind Git commit, SQLite online backup and locks in one verified manifest. One branch per Save is rejected.','CONFIRMED DIRECTION'),
-('DATA-01','Physical PostgreSQL naming and Django app labels','Data/Engineering','Before migration','Use semantic snake_case; preserve logical contracts and ctrl_* governance boundary.','DECISION REQUIRED'),
+('DEC-15','Browser session and CSRF','Identity + Security','Week 1','Opaque __Host-vibe_session cookie, Redis server-side session, per-session CSRF token plus Origin checks; no long-lived browser JWT/localStorage; Redis outage fails authentication closed.','CONFIRMED DIRECTION'),
+('DEC-16','JWT signing and service exchange','Security + Platform','Week 1','Asymmetric short-lived audience-bound JWT only for one-time preview and scoped service exchange; AUTH_KEYSET public metadata, secret reference, kid rotation, jti/replay and revocation required.','CONFIRMED DIRECTION'),
+('DATA-01','Physical PostgreSQL naming and Prisma model mapping','Data/Engineering','Before migration','Use semantic snake_case; preserve logical contracts and ctrl_* governance boundary.','DECISION REQUIRED'),
 ('DATA-02','Operational/audit/chat/error/usage/job retention','Product + Privacy + Operations','Before cleanup','Approve each data class and legal-hold rule before destructive jobs.','DECISION REQUIRED'),
 ('DATA-03','Workspace/PVC encryption, backup and restore','Security + Operations','Before snapshots','Encrypted storage, reclaim/backup policy and timed restore drill.','DECISION REQUIRED'),
 ('DATA-04','Account inactivity/session policy','Product + Identity + Security','Before job enablement','Keep review-only in POC; decide threshold, exclusions and session revoke separately.','DECISION REQUIRED'),
@@ -647,7 +656,7 @@ error_map = [
 ('Model', 'Gateway/provider unavailable', 'MODEL_UNAVAILABLE', '503', 'ERROR', 'AI service is temporarily unavailable. Try again.', 'Yes', 'Run fails safely; no accepted snapshot', 'Retry with backoff', 'correlation_id, approved provider alias, gateway status'),
 ('Model', 'Model/residency/policy route denied', 'MODEL_POLICY_DENIED', '403', 'WARNING', 'This request cannot use the selected AI route.', 'No', 'No provider call; security decision audited', 'Choose approved route or contact Platform super admin', 'correlation_id, policy rule id, model alias'),
 ('Preview', 'Preview route missing, stopped, stale or unavailable', 'PREVIEW_UNAVAILABLE', '404', 'INFO', 'Preview unavailable.', 'No', 'No cross-owner scope/existence disclosure; fail closed', 'Owner reopens the project or retries preview start', 'correlation_id, route key hash and workspace generation; never session material'),
-('Preview auth', 'Ticket replay, expiry, host/generation mismatch or revoked session', 'PREVIEW_AUTH_DENIED', '401', 'WARNING', 'Preview authorization is no longer valid.', 'No', 'Atomic consume/revoke state remains authoritative; no upstream request', 'Return through the platform to obtain a new one-time ticket', 'correlation_id, grant id, safe denial reason; never credential/session material'),
+('Preview auth', 'JWT replay, expiry, unknown/retired kid, wrong audience/host/session/project/generation or revoked session', 'PREVIEW_AUTH_DENIED', '401', 'WARNING', 'Preview authorization is no longer valid.', 'No', 'Atomic hashed-jti consume/revoke state remains authoritative; no upstream request', 'Return through the platform to obtain a new one-time short-lived JWT', 'correlation_id, grant id, kid and safe denial reason; never raw JWT/cookie/session material'),
 ('Capacity', 'Global pool queue is full or queue timeout reached', 'CAPACITY_QUEUE_FULL', '429', 'WARNING', 'Workspace capacity is busy. Try again later.', 'Yes', 'No lease allocated and no runtime start', 'Retry after bounded backoff', 'correlation_id, pool key, queue depth and wait time; no node identity'),
 ('Snapshot', 'Manifest/hash/reference validation fails', 'SNAPSHOT_INVALID', '422', 'ERROR', 'Version could not be verified.', 'No', 'Snapshot becomes INVALID/FAILED through exact graph', 'Create a new verified snapshot', 'correlation_id, snapshot id, failed check ids'),
 ('Snapshot', 'Autosave, Git ref compare-and-swap, SQLite online backup or manifest capture fails', 'SNAPSHOT_CAPTURE_FAILED', '500', 'ERROR', 'Your latest saved version is still protected.', 'Yes', 'Partial snapshot remains non-AVAILABLE; PROJECT.current_snapshot_id and last successful autosave remain unchanged', 'Retry with same idempotency key after reconciliation', 'correlation_id, snapshot id/kind, Git expected/actual commit, backup stage, failed hash ids; no file content'),
@@ -669,21 +678,21 @@ job_catalogue = [
 ('JOB-06','operation_timeout_sweep','INTERVAL','Every 60 seconds','Yes','Non-terminal AGENT_RUN, matching MUTATION_LEASE/AGENT_EVENT heartbeat, RESTORE_JOB, PREVIEW_AUTH_GRANT and JOB_RUN','For stale Cline heartbeat issue the same idempotent Recover agent session command: cancel old Job/Pod and persist schema-valid RUNTIME_RESOURCE_REF.write_revocation_json; lease expiry alone is insufficient.','Bounded batches; command id; no linked retry until prior terminal state and UID-bound write-revocation proof validate','Retry creates one linked prior_attempt_id row; uncertain tool actions are never replayed automatically.'),
 ('JOB-07','soft_delete_purge_sweep','CRON','02:00 UTC daily','No — retention decision required','PROJECT deleted/lifecycle status and legal hold','After approved retention, request exact purge workflow and allowlisted K3s/PVC cleanup.','Disabled until DATA-02; mutation lock','No blind cascade of PVC, snapshots or audit.'),
 ('JOB-08','snapshot_retention_sweep','CRON','02:30 UTC daily','No — DATA-DEC-08 required','SNAPSHOT status/age and project/restore references','Delete only unreferenced snapshots after approved retention and legal-hold checks.','Reference checks; bounded delete','Current or restore-bound snapshot is protected.'),
-('JOB-09','django_session_cleanup','CRON','03:00 UTC daily','Yes','Django session expiry','Delete expired server-side sessions using Django clearsessions.','Framework command; one active run','Does not change AUTH_USER last_login/is_active.'),
+('JOB-09','redis_session_metrics_check','CRON','03:00 UTC daily','Yes','Redis session namespace TTL/eviction metrics only','Verify every session key has bounded TTL; alert on no-TTL keys, memory pressure or unexpected eviction. Redis itself expires sessions.','Read-only bounded scan/metrics; one active run','Never extends TTL, reconstructs a session or changes AUTH_USER.last_login_at/is_active.'),
 ('JOB-10','audit_retention_sweep','CRON','03:30 UTC daily','No — DATA-02 required','CHAT/AGENT/ERROR/USAGE/JOB_RUN/AUDIT timestamps and legal hold','Delete/archive only classes with approved retention.','Bounded per-class batch and hold check','Failure creates a linked new run.'),
 ('JOB-11','orphan_runtime_reconcile','CRON','Minute 10 hourly','Yes','K3s allowlisted resource inventory, WORKSPACE, leases and routes','Quarantine unknown resource; clean confirmed orphan; flag missing expected resource.','Two-source evidence; never adopt arbitrary object','No project delete or automatic user-mutation replay.'),
-('JOB-12','inactive_account_review','CRON','04:00 UTC daily','No — account policy required','AUTH_USER last_login/date_joined/is_active','Produce Platform-admin review candidates only.','Threshold/exclusions require approval','No automatic disable or session revoke.'),
+('JOB-12','inactive_account_review','CRON','04:00 UTC daily','No — account policy required','AUTH_USER last_login_at/created_at/is_active','Produce Platform-admin review candidates only.','Threshold/exclusions require approval','No automatic disable or session revoke.'),
 ('JOB-13','restore_journal_recovery','STARTUP + INTERVAL','On controller startup and every 30 seconds','Yes','Non-terminal RESTORE_JOB stale after 60 seconds without owner heartbeat; MUTATION_LEASE, journal phase/decision, result link and generation/route evidence','SELECT RESTORE_JOB FOR UPDATE SKIP LOCKED; CAS-claim stale/unowned journal by (restore_job_id,journal_phase,row_version). PENDING before commit rolls back staging/result; COMMIT with marker reconciles target; ROLLBACK restores verified prior pointers/status.','One claimant; idempotent phase actions; never infer from runtime alone; maximum three failed recovery attempts','Third failed attempt or unrecoverable journal enters MANUAL_INTERVENTION, marks result INVALID/quarantined, keeps route withdrawn and mutation blocked; append ERROR_EVENT/AUDIT_LOG. Acceptance fixture reaches verified READY or MANUAL_INTERVENTION within 5 minutes.'),
 ]
 
 control_field_contract = [
 ('Naming policy','ctrl_* prefix','Not used as a generic physical prefix','DATA-01-approved migration conventions','Schema maintainers','No runtime effect. Semantic names below avoid hiding different ownership and side effects behind one prefix.','A future naming-map may rename columns but must preserve each field contract.'),
-('AUTH_USER','last_login (equivalent concept: ctrl_last_login_date)','Latest successful authentication timestamp','Django authentication framework','Inactive-account review/report only','Changing it changes inactivity reporting/candidate selection. It does not activate/deactivate an account, revoke sessions or grant permission.','No direct SQL. Normal writer is successful login; correction requires Platform-super-admin audited data-fix command.'),
-('AUTH_USER','is_active','Login eligibility','Django identity service / Platform super admin','Authentication backend','FALSE blocks future authentication; existing-session revoke is a separate explicit command/policy.','Restricted command; audit actor/reason. Never infer from last_login alone.'),
-('PROJECT','row_version','Optimistic concurrency token','Django command service','All project mutations','Stale supplied version rejects mutation; increment itself has no domain effect.','Never manually choose a higher value to bypass conflict.'),
+('AUTH_USER','last_login_at (equivalent concept: ctrl_last_login_date)','Latest successful authentication timestamp','NestJS identity service through Prisma','Inactive-account review/report only','Changing it changes inactivity reporting/candidate selection. It does not activate/deactivate an account, revoke Redis sessions or grant permission.','No direct SQL or AdminJS field edit. Normal writer is successful login; correction requires audited data-fix command.'),
+('AUTH_USER','is_active / session_version','Login eligibility and global session invalidation','NestJS identity service / Platform super admin','Authentication guard and Redis session lookup','FALSE blocks future authentication; incremented session_version invalidates every Redis session carrying an older version.','Named AdminJS/NestJS command with Prisma transaction, session-index deletion and AUDIT_LOG; never infer from last_login_at alone.'),
+('PROJECT','row_version','Optimistic concurrency token','NestJS command service through Prisma','All project mutations','Stale supplied version rejects mutation; increment itself has no domain effect.','Use updateMany expected row_version and require count=1 inside the same interactive transaction as command dedup and audit; no unchecked update.'),
 ('PROJECT','deleted_at','Soft-delete timestamp','Project service','soft_delete_purge_sweep','Makes project eligible only after approved retention and legal-hold checks; lifecycle_status remains authoritative.','Set atomically with legal SOFT_DELETED transition.'),
 ('WORKSPACE','desired_status / stop_reason','Control-plane intent and reason','Authorized command or idle policy','Runtime Controller reconciler','Changes requested runtime behavior; IDLE_TIMEOUT prevents unintended automatic restart.','In one PostgreSQL transaction insert/claim immutable AUDIT_LOG(service_name,command_id), CAS WORKSPACE.row_version, store accepted/rejected result and commit; any conflict rolls back all. command_id dedup never replaces aggregate CAS.'),
-('WORKSPACE','observed_status','Evidence-backed runtime state','Runtime Controller only','UI, admission and reconciler','Changes displayed/recovery behavior; READY requires verified health and route evidence.','Django Admin cannot directly forge this value.'),
+('WORKSPACE','observed_status','Evidence-backed runtime state','Runtime Controller only','UI, admission and reconciler','Changes displayed/recovery behavior; READY requires verified health and route evidence.','AdminJS cannot directly forge this value; it may invoke only a named NestJS recovery command with evidence and audit.'),
 ('WORKSPACE','last_heartbeat_at','Latest runtime-manager heartbeat','Runtime Controller','workspace_reconcile_loop','Older than approved threshold makes state stale and may cause legal DEGRADED/ERROR handling; never proves deletion alone.','Service write only; correction requires evidence and audit.'),
 ('WORKSPACE','last_activity_at / idle_deadline_at','Idle policy inputs','Authenticated activity collector / idle policy','workspace_idle_sweep','Moves or cancels idle warning/deadline. A past deadline may issue STOPPED intent when no active mutation exists.','Activity sources are allowlisted; direct client timestamps are not trusted.'),
 ('WORKSPACE','git_main_branch / git_workspace_branch','Server-owned project Git refs','Project initialization and snapshot service','Save/autosave/restore','main mirrors PROJECT.current_snapshot; workspace branch carries active work. Ref names never grant authorization.','Only platform commands may create/update refs; compare-and-swap expected old commit and audit result.'),
@@ -691,8 +700,8 @@ control_field_contract = [
 ('MUTATION_LEASE','heartbeat_at / expires_at / row_version','Exclusive control-plane mutation authority','Lease holder/service','lease_reaper and mutation guards','Expiry removes control-plane authority only; it does not terminate a Pod or revoke an existing PVC writer.','CAS token hash plus row_version; in-place retry additionally requires old Pod UID/mount write-revocation evidence.'),
 ('CAPACITY_POOL / RESOURCE_LEASE','last_admitted_owner_id / workload_kind / agent_run_id / lease_status / queue_sequence / slot_count / queue bounds / row_version','Global fail-closed component admission and crash-rebuildable bounded queue','Admission controller using PostgreSQL','Every Preview and Agent Job launch','PREVIEW and AGENT_JOB use independent rows; owner derives through workspace. Under the pool row lock, choose queued owners cyclically ascending after durable last_admitted_owner_id (NULL/missing starts smallest), then FIFO by queue_sequence; claim and cursor update commit together.','SELECT CAPACITY_POOL FOR UPDATE; max depth/timeout, unique live rows, monotonic sequence, cursor and CAS claim persist. On crash the committed cursor+QUEUED rows reconstruct the unique next owner; profile requires CPU/RAM/PID/storage.'),
 ('RUNTIME_RESOURCE_REF','agent_run_id / observed_uid / write_revocation_json','Exact-attempt old-writer termination and write-revocation proof','Runtime Controller','Agent STOPPED and linked retry admission','Each Agent JOB proof row has unique agent_run_id plus exact Kubernetes UID, deletion observation and failed-closed write probe. A proof from another run/generation cannot satisfy the guard.','Schema-valid proof with agent_run_id=the stopped/prior attempt required before STOPPING→STOPPED and linked retry; lease expiry never qualifies.'),
-('PREVIEW_ROUTE','workspace_generation / route_status / revoked_at','Owner-route validity','Preview Gateway / authorized lifecycle command','Every preview and HMR request plus route reconcile','Stale generation, stopped workspace or revoked route denies immediately.','Route row_version plus audited command_id; one-time ticket/exact-host preview cookie; platform cookies stripped before upstream.'),
-('PREVIEW_AUTH_GRANT','credential_hash / session_key_hash / audience_host / workspace_generation / grant_status / expires_at / row_version','Shared one-time consume, cookie rotation and revocation state','Preview Gateway replicas through PostgreSQL','Every HTTP/WSS preview authorization','ISSUED ticket is atomically consumed once and rotated to a cookie hash; wrong host/generation/owner/session, replay, expiry or revoke denies on every replica.','Unique credential hash, partial unique live route/session and row_version CAS; raw credential never persisted.'),
+('PREVIEW_ROUTE','workspace_generation / route_status / revoked_at','Owner-route validity','Preview Gateway / authorized lifecycle command','Every preview and HMR request plus route reconcile','Stale generation, stopped workspace or revoked route denies immediately.','Route row_version plus audited command_id; one-time short-lived JWT/exact-host preview cookie; platform cookies stripped before upstream.'),
+('PREVIEW_AUTH_GRANT','session_key_hash / jwt_jti_hash / signing_kid / credential_hash / audience_host / workspace_generation / grant_status / expires_at / row_version','JWT issue, one-time jti consume, host-cookie rotation and revocation authority','Preview Gateway replicas through PostgreSQL; Redis validates platform session','Every HTTP/WSS preview authorization','ISSUED short-lived JWT verifies through active AUTH_KEYSET metadata and is atomically consumed once by hashed jti, then rotated to a cookie hash; wrong kid/signature/audience/host/generation/owner/session, replay, expiry or revoke denies on every replica.','Unique jti/cookie hashes, partial unique live route/session and row_version CAS; raw JWT, cookie and Redis session identifier are never persisted or logged.'),
 ('SNAPSHOT','snapshot_kind / version_no / snapshot_status / row_version','Whole-app snapshot identity, completeness and visibility','Snapshot service under MUTATION_LEASE','Save list, autosave recovery and restore','Only complete AVAILABLE rows are reusable; canonical manifest_json/hash binds migration/template/lock and artifact evidence.','Allocate version_no under project lock and unique idempotency key; row_version CAS; artifact outputs may be NULL only before VALIDATING.'),
 ('RESTORE_JOB','restore_status / idempotency_key / target_generation / prior_active_generation / prior_snapshot_id / prior_route_generation / prior_route_status / journal_phase / journal_decision / cutover_committed_at / result_snapshot_id / row_version','Idempotent generation-staged Restore and complete durable cutover journal','Restore service under MUTATION_LEASE','Restore recovery worker, PROJECT/WORKSPACE/PREVIEW_ROUTE pointer transaction and Runtime Controller','PRE_RESTORE, every prior pointer/status and one provisional RESTORE_RESULT are captured atomically before RESTORING_CODE, so early and late rollback share one unambiguous result link. One PostgreSQL transaction switches pointers/commit marker; rollback failure keeps route withdrawn.','Unique(project,idempotency_key), field-level same-project FKs, row locks/CAS and state/journal constraints; ROLLED_BACK restores exact prior route status only after health, MANUAL_INTERVENTION never resumes.'),
 
@@ -701,23 +710,20 @@ control_field_contract = [
 ('All applicable tables','created_at / updated_at','Audit timestamps, not business state','Owning service/ORM','Operations and retention where explicitly listed','Changing updated_at alone must not trigger workflow or status correction.','Automatic service write; no generic magic database trigger.'),
 ]
 
-# Django owns the identity/RBAC physical tables; the workbook promotes each table
-# with a direct POC contract to a logical entity instead of hiding it as framework magic.
-framework_tables = [
-('auth_user','AUTH_USER','Django default User with DEFAULT_AUTO_FIELD=BigAutoField','Direct POC use','Authentication identity; routine authorization comes from role assignments plus object ownership','is_superuser is break-glass only; do not use it as the ordinary Platform-admin role'),
-('django_session','AUTH_SESSION','Django DB-backed session engine','Direct POC use','Opaque server-side sessions and expiry cleanup','session_data is confidential opaque framework payload'),
-('auth_group','AUTH_ROLE','Django auth','Direct POC use','Seeded VIBE_USER and PLATFORM_ADMIN roles','Role names and membership changes are migration/validated-command controlled and audited'),
-('auth_permission','AUTH_PERMISSION','Django auth/contenttypes','Direct POC use','Allowlisted platform permissions','Permission codenames are code-owned; object ownership remains backend-enforced'),
-('auth_user_groups','AUTH_USER_ROLE','Django auth M2M','Direct POC use','User-to-role assignment','UNIQUE(user_id, group_id); no hidden role string on AUTH_USER'),
-('auth_group_permissions','AUTH_ROLE_PERMISSION','Django auth M2M','Direct POC use','Role-to-permission assignment','UNIQUE(group_id, permission_id); changes are privileged and audited'),
-('auth_user_user_permissions','Framework dependency','Django auth M2M','Prohibited for normal POC administration','Framework direct user-permission join exists physically','POC grants through roles only; direct grants require explicit exception'),
-('django_content_type','AUTH_CONTENT_TYPE','Django contenttypes','Direct framework contract','Permission/content-type identity','No Vibe-domain ownership'),
-('django_migrations','Framework dependency','Django migration recorder','Framework only','Applied migration evidence','Operational metadata, not business audit'),
+# Redis is deliberately limited to revocable sessions, bounded cache and replay/rate
+# coordination. PostgreSQL through Prisma remains authoritative for business state.
+redis_keys = [
+('session:{sid_hash}','Current first-party browser session','{schema_version,user_id,session_version,csrf_hash,created_at,last_seen_at,absolute_expires_at,auth_strength,client_hashes}','Idle TTL plus immutable absolute bound; exact values DECISION REQUIRED','NestJS identity service','Logout/account-disable/password-reset/role revoke deletes user-indexed sessions; missing Redis fails authentication closed.'),
+('session-user:{user_id}','Set of sid_hash values for bounded all-session revocation','Redis SET of session hashes only','No longer than longest member session','NestJS identity service','Updated atomically with session create/delete; missing index triggers session_version increment and lazy denial, never grants access.'),
+('cache:project:{project_id}:v{row_version}','Owner-scoped project/status read-through cache','Versioned non-secret projection; no prompts, credentials or raw generated content','Short bounded TTL','NestJS project service','Invalidate after committed Prisma transaction; miss/outage reads PostgreSQL; stale entry cannot authorize or mutate.'),
+('cache:preview-route:{host}:g{generation}','Read-through route projection after authoritative authorization','{owner_id,project_id,generation,target_ref,status,expires_at}','Seconds, not longer than route/auth grant','Preview Gateway','Miss/outage reads PostgreSQL; generation/status mismatch denies; cache alone never grants.'),
+('replay:service-jwt:{jti_hash}','Single-use/non-idempotent internal JWT replay marker','SETNX marker with issuer/audience hash','JWT remaining lifetime only','NestJS token guard','Duplicate SETNX denies; Redis outage fails the protected non-idempotent endpoint closed.'),
+('rate:login:{principal_hash}:{ip_prefix_hash}','Bounded login abuse counter','Integer counter; hashes are keyed and non-reversible','Short security-policy window; exact values DECISION REQUIRED','NestJS identity service','Expiry resets bucket; Redis outage applies conservative fail-closed or explicitly approved local emergency policy, never unlimited login.'),
 ]
 
 # Apply the user-approved scope correction before any sheet is generated.
 governance = [r for r in governance if r[0] != 'EXPORT_JOB'] + [
- ('AUTH_ROLE / AUTH_PERMISSION / joins','Internal / Authorization','Platform admin','Hong Kong assumption','Assignment and permission history per audit retention DECISION REQUIRED','Framework tables in encrypted DB/backup','Role/permission changes require allowlisted command, named actor, reason and AUDIT_LOG evidence'),
+ ('AUTH_ROLE / AUTH_PERMISSION / joins','Internal / Authorization','Platform admin','Hong Kong assumption','Assignment and permission history per audit retention DECISION REQUIRED','Prisma/PostgreSQL encrypted DB/backup','AdminJS/NestJS role or permission changes require allowlisted command, named actor, reason, expected row_version and AUDIT_LOG evidence'),
  ('AUTH_LOGIN_HISTORY','Restricted / Security evidence','Platform admin','Hong Kong assumption','Retention DECISION REQUIRED','Encrypted DB/backup; keyed hashes only','No raw password, session key, IP address or unrestricted user-agent'),
  ('SYS_CONFIG','Internal / Security-sensitive','Platform admin','Hong Kong assumption','Version/audit retention DECISION REQUIRED','Encrypted DB/backup; secrets external','Only allowlisted typed non-secret keys; is_sensitive must remain FALSE in POC'),
 ]
@@ -736,7 +742,11 @@ samples = [r for r in samples if r[0] != 'EXPORT_JOB'] + [
  ('AUTH_ROLE','name','PLATFORM_ADMIN','Seeded routine administration role'),
  ('ORGANIZATIONAL_UNIT','unit_code','DEFAULT_DEPT','POC seed below DEFAULT_OU and DEFAULT_ORG; no implicit project access'),
  ('AUTH_USER_ORG_MEMBERSHIP','is_primary','TRUE','Every provisioned POC user has one active primary Default Department membership'),
- ('AUTH_USER_ROLE','group_id','2','Illustrative role FK; not a real production identity'),
+ ('AUTH_USER_ROLE','role_id','2','Illustrative role FK; not a real production identity'),
+ ('AUTH_KEYSET','kid','preview-2026-08-a','Illustrative public key identifier; no private material'),
+ ('PREVIEW_AUTH_GRANT','signing_kid','preview-2026-08-a','Illustrative FK to public key metadata'),
+ ('PREVIEW_AUTH_GRANT','jwt_jti_hash','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee','Hash only; raw short-lived JWT is never persisted'),
+ ('AUTH_SESSION','sid_hash','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd','Hash only; raw session ID stays in secure host-only cookie'),
  ('AUTH_LOGIN_HISTORY','result','DENIED','Safe outcome example; no credential evidence'),
  ('SYS_CONFIG','config_key','workspace.idle_timeout_seconds','Allowlisted typed key'),
  ('SYS_CONFIG','value_json','900','Illustrative integer value; final policy remains decision-controlled'),
@@ -758,11 +768,12 @@ for _,_,_,p in ER_IMAGES:
     if not p.exists():
         raise FileNotFoundError(f'ER image missing: {p}')
 
-# Control-metadata naming policy. Django framework physical schemas retain their
-# prescribed names; custom control-plane tables use ctrl_* for audit, lifecycle,
+# Control-metadata naming policy. Prisma models map to explicit PostgreSQL tables;
+# custom control-plane fields use ctrl_* for audit, lifecycle,
 # concurrency and workflow metadata. The contract remains explicit: prefix is
 # discoverability, not hidden trigger behaviour.
-framework_table_names=set(framework_physical)
+# AUTH_SESSION is a Redis key contract, so PostgreSQL ctrl_* renaming does not apply.
+framework_table_names={'AUTH_SESSION'}
 control_exact={'created_at','updated_at','created_by_id','updated_by_id','row_version','deleted_at','archived_at','archived_by_id','requested_at','started_at','completed_at','expires_at','revoked_at','attempt_no','retry_count','processed_at','loaded_at','batch_id','source_system'}
 control_rename={}
 for table,cols in schema.items():
@@ -789,7 +800,7 @@ relationships=ctrl_names(relationships)
 indexes=ctrl_names(indexes)
 samples=ctrl_names(samples)
 control_field_contract=ctrl_names(control_field_contract)
-control_field_contract[0]=('Naming policy','ctrl_* prefix','Required for custom control metadata; Django physical fields retain framework names','DATA-01-approved migration conventions','Schema maintainers','Prefix visually separates audit/lifecycle/concurrency/queue metadata from domain data; behaviour remains defined by the per-field contract.','No database-trigger magic; preserve documented writer, consumer, effect and audited correction path.')
+control_field_contract[0]=('Naming policy','ctrl_* prefix','Required for Prisma-managed PostgreSQL control metadata; Redis key fields retain their key-contract names','DATA-01-approved migration conventions','Schema maintainers','Prefix visually separates audit/lifecycle/concurrency/queue metadata from domain data; behaviour remains defined by the per-field contract.','No database-trigger magic; preserve documented writer, consumer, effect and audited correction path.')
 wb=Workbook(); wb.remove(wb.active)
 wb.calculation.fullCalcOnLoad = True
 wb.calculation.forceFullCalc = True
@@ -847,24 +858,28 @@ ws['B12'].comment=Comment('Formula is recalculated by LibreOffice during verific
 
 # Entity catalogue
 ws=wb.create_sheet('Entity Catalogue')
-base_sheet(ws,'Entity Catalogue','Logical entity list with physical Django/PostgreSQL mapping. Identity, role, permission, assignments, login history and typed system configuration are explicit rather than implied by framework tables.',['Entity','Proposed Physical Table','Domain Sheet','Purpose','Authoritative Owner','Primary Data Store','POC / Stage','Notes'],[24,30,18,50,28,22,14,48])
+base_sheet(ws,'Entity Catalogue','Logical entity list with explicit Prisma/PostgreSQL mappings plus one Redis session contract. Identity, RBAC, key rotation, login history and typed configuration are application-owned and migration-reviewed.',['Entity','Proposed Physical Table','Domain Sheet','Purpose','Authoritative Owner','Primary Data Store','POC / Stage','Notes'],[24,30,18,50,28,22,14,48])
 rows=[]
 entity_stage={
     'RESOURCE_LEASE':'Required Stage 1 global admission ledger; allocation serialized through CAPACITY_POOL',
     'RUNTIME_RESOURCE_REF':'Required K3s observed-resource reference; no arbitrary manifest content',
     'WORKSPACE_USAGE_SAMPLE':'Conditional evidence — metrics backend is acceptable if acceptance reports remain reproducible',
     'CAPACITY_POOL':'Required Stage 1 global capacity, resource-profile and bounded-queue contract',
-    'PREVIEW_AUTH_GRANT':'Required Stage 1 shared one-time preview ticket/cookie replay and revocation state',
+    'PREVIEW_AUTH_GRANT':'Required Stage 1 shared one-time preview JWT/cookie replay and revocation state',
 }
 for t,(domain,purpose,owner) in table_meta.items():
-    if t in framework_physical: notes=f'Framework-managed physical table {framework_physical[t]}; exposed here because it has a direct POC data/authorization contract.'
-    else: notes='Proposed Django db_table; confirm app label in DATA-01.'
-    rows.append((t,physical_tables[t],domain,purpose,owner,'PostgreSQL',entity_stage.get(t,'POC must-have'),notes))
+    if t == 'AUTH_SESSION':
+        notes='Logical Redis key contract; not a PostgreSQL table and not managed by Prisma migrations.'
+        store='Redis'
+    else:
+        notes='Explicit Prisma model/table mapping; migration SQL and generated client are reviewed together.'
+        store='PostgreSQL'
+    rows.append((t,physical_tables[t],domain,purpose,owner,store,entity_stage.get(t,'POC must-have'),notes))
 write_rows(ws,rows)
 
-ws=wb.create_sheet('Framework Tables')
-base_sheet(ws,'Django Framework-managed Tables','These physical tables exist in the POC database but are not separate Vibe business entities. This boundary prevents a half-reimplemented auth/session model while keeping ownership explicit.',['Physical Table','Logical Reference','Owner / Engine','Direct POC Contract','Purpose','Boundary / Rule'],[30,28,34,22,45,65])
-write_rows(ws,framework_tables)
+ws=wb.create_sheet('Redis Key Catalogue')
+base_sheet(ws,'Redis Key Catalogue','Redis contains only revocable session, bounded cache, replay and rate-limit coordination state. PostgreSQL through Prisma remains authoritative for users, RBAC, projects, commands, grants and audit.',['Key Pattern','Purpose','Value Schema','TTL / Bound','Owner','Invalidation / Failure'],[38,42,58,38,28,70])
+write_rows(ws,redis_keys)
 
 # Four fixed-layout ER views keep the POC model readable instead of one spaghetti diagram.
 for sheet_name, title, desc, image_path in ER_IMAGES:
@@ -913,7 +928,7 @@ write_rows(ws,relationships)
 
 # Indexes
 ws=wb.create_sheet('Indexes')
-base_sheet(ws,'Indexes & Uniqueness','Required logical indexes. Final Django migration names may be shortened for PostgreSQL identifier limits without changing the column/condition contract.',['Table','Logical Index Name','Columns / Expression','Type','Condition / Purpose','Priority'],[28,38,48,20,70,16])
+base_sheet(ws,'Indexes & Uniqueness','Required logical indexes. Final Prisma migration names may be shortened for PostgreSQL identifier limits without changing the column/condition contract.',['Table','Logical Index Name','Columns / Expression','Type','Condition / Purpose','Priority'],[28,38,48,20,70,16])
 write_rows(ws,indexes)
 
 # Enum catalogue
@@ -947,7 +962,7 @@ def edge_rule(field,src,dst):
         side='Atomically set STOPPED/ABORTED only after durable UID-bound write-revocation proof; append transition audit.'
     if field=='SNAPSHOT.snapshot_status':
         guard='Snapshot-service row_version compare-and-swap plus (project_id,idempotency_key); artifact results may be NULL only in REQUESTED/CAPTURING.'
-        side='Never change due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash; AVAILABLE is immutable.'
+        side='Never mutate artifact identity/content due to restore; before VALIDATING require Git ref/commit, SQLite object/hash and canonical manifest/hash. Once AVAILABLE, artifact identity/content is immutable; snapshot_status changes only through canonical transitions.'
     if field=='RESTORE_JOB.restore_status': guard='Owner-authorized Restore; RESTORE_JOB.row_version compare-and-swap plus unique (project_id,idempotency_key); same retry returns this row.'
     if field=='RESTORE_JOB.restore_status' and src=='VALIDATING_SOURCE': guard+=' source_snapshot_id must be same-project AVAILABLE.'
     if field=='RESTORE_JOB.restore_status' and src=='ACQUIRING_LOCK' and dst=='RESTORING_CODE':
@@ -963,12 +978,12 @@ def edge_rule(field,src,dst):
         side='Set journal_phase=REVERSED, keep cutover_committed_at NULL, verify prior runtime/route health, then and only then restore prior_route_status; if prior status was not READY do not invent READY.'
     if field=='RESTORE_JOB.restore_status' and src=='ROLLING_BACK' and dst=='FAILED':
         side='Set journal_phase=MANUAL_INTERVENTION; mark the always-present provisional RESTORE_RESULT INVALID/quarantined, preserve before-image and failure evidence, keep route withdrawn and all mutations blocked. Never claim rollback success or resume traffic.'
-    if field=='PREVIEW_AUTH_GRANT.grant_status': guard='Preview Gateway uses shared PostgreSQL; exact route/owner/host/generation/session binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.'
-    if field=='PREVIEW_AUTH_GRANT.grant_status' and src=='ISSUED' and dst=='CONSUMING': side='Atomically consume the one-time ticket by CAS; a second replica/replay loses the update and is denied.'
-    if field=='PREVIEW_AUTH_GRANT.grant_status' and src=='CONSUMING' and dst=='ACTIVE': side='Atomically replace ticket credential_hash with short-lived host-only preview-cookie hash; append audit without raw credential.'
-    if field=='PREVIEW_AUTH_GRANT.grant_status' and dst in ('EXPIRED','REVOKED','FAILED'): side='Deny HTTP/WSS immediately on every replica; session revoke updates all matching session_key_hash grants.'
+    if field=='PREVIEW_AUTH_GRANT.grant_status': guard='Preview Gateway validates Redis session/version then uses shared PostgreSQL; active AUTH_KEYSET kid/signature plus exact iss/aud/owner/session/project/host/generation/jti/iat/exp binding, unexpired grant and PREVIEW_AUTH_GRANT.row_version compare-and-swap are mandatory.'
+    if field=='PREVIEW_AUTH_GRANT.grant_status' and src=='ISSUED' and dst=='CONSUMING': side='Atomically consume jwt_jti_hash by CAS; a second replica/replay loses the update and is denied. Raw JWT is never persisted or logged.'
+    if field=='PREVIEW_AUTH_GRANT.grant_status' and src=='CONSUMING' and dst=='ACTIVE': side='Atomically store only the short-lived host-only preview-cookie hash, clear one-time exchange authority and append audit without JWT/cookie/session material.'
+    if field=='PREVIEW_AUTH_GRANT.grant_status' and dst in ('EXPIRED','REVOKED','FAILED'): side='Deny HTTP/WSS immediately on every replica; Redis session revoke/version rotation updates or invalidates all matching session_key_hash grants.'
     if field=='PREVIEW_ROUTE.route_status': guard='Preview-route row_version compare-and-swap plus immutable AUDIT_LOG command_id; no route-level idempotency_key column exists.'
-    if field=='PREVIEW_ROUTE.route_status' and dst=='READY': guard+=' Workspace health, exact-host one-time-ticket/preview-cookie owner auth, Host allowlist and immutable same-project /api route verified.'
+    if field=='PREVIEW_ROUTE.route_status' and dst=='READY': guard+=' Workspace health, exact-host one-time short-lived JWT/preview-cookie owner auth, Host allowlist and immutable same-project /api route verified.'
 
     if field=='JOB_RUN.run_status' and dst=='RUNNING': guard='Job enabled and due; active-run partial unique constraint is clear; atomically set started_at and increment row_version.'
     if field=='JOB_RUN.run_status' and dst=='SUCCEEDED': side='Require failed_count=0; persist counts/result_json and finished_at. Target business state remains owned and audited by its service.'
@@ -1025,7 +1040,7 @@ ws=wb.create_sheet('Generated App Contract')
 base_sheet(ws,'Generated-App SQLite & Migration Contract','Generated-app business tables are project-specific and cannot be enumerated before the user designs an app. This sheet defines the mandatory schema boundary for every generated SQLite database.',['Area','POC Contract','Validation / Evidence','Status'],[32,95,75,20])
 generated_contract=[
 ('Database engine','One SQLite database file per project Workspace PVC; no network listener or host-published database port.','Network scan and K3s Service/Pod inspection show no database host exposure.','Required'),
-('Backend boundary','FastAPI is internal; frontend reaches it only through immutable same-project /api routing. All gateway replicas use PostgreSQL PREVIEW_AUTH_GRANT to CAS-consume one-time tickets and rotate to short-lived exact-host cookie hashes bound to owner/session/generation; every HTTP/WSS request checks shared expiry/revoke state and strips platform credentials upstream.','Two-replica concurrent consume, cross-project, replay, session revoke, expiry, wrong-audience/generation, WebSocket and upstream-stripping negative tests.','Required'),
+('Backend boundary','FastAPI is internal; frontend reaches it only through immutable same-project /api routing. Browser auth remains an opaque Redis-backed server-side session. All gateway replicas verify the active AUTH_KEYSET kid/signature and exact JWT claims, then use PostgreSQL PREVIEW_AUTH_GRANT to CAS-consume jwt_jti_hash once and rotate to short-lived exact-host cookie hashes bound to owner/session/project/generation; every HTTP/WSS request checks shared expiry/revoke state and strips platform credentials upstream.','Two-replica concurrent jti consume, unknown/retired kid, bad signature, wrong issuer/audience/project/generation, cross-project, replay, Redis session revoke/version rotation, expiry, WebSocket and upstream-stripping negative tests.','Required'),
 ('Live frontend update','React/TypeScript/CSS changes use Vite HMR over authenticated WSS where eligible.','HMR update and reconnect test through wildcard preview route.','Required'),
 ('Live backend update','Supported Python source changes use Uvicorn reload in mutable preview only.','Backend source edit, readiness and frontend reconnect test.','Required'),
 ('Change classification','Dependency, environment, migration and runtime-contract changes are classified as restart, rebuild or approval required; never mislabeled HMR.','Deterministic classifier tests for each Technical Design matrix row.','Required'),

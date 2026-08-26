@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import wrap
+import json
 import os
 import tempfile
 
@@ -15,11 +16,21 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
+from report_diagrams import (
+    create_sequence_diagram,
+    create_state_diagram,
+    create_ui_component_contract,
+    create_use_case_flow,
+    create_vibe_layout,
+)
+
 ROOT = Path(os.environ.get('VIBE_CODE_ROOT', Path(__file__).resolve().parents[2]))
 REPORTS = ROOT / 'wiki/product/reports'
 PRD_OUT = REPORTS / 'vibe-code-no-code-poc-prd-and-delivery-plan.docx'
 TECH_OUT = REPORTS / 'vibe-code-poc-technical-design-and-runtime-architecture.docx'
 DIAGRAM_DIR = Path(os.environ.get('VIBE_REPORT_DIAGRAM_DIR', Path(tempfile.gettempdir()) / 'vibe-doc-v2-diagrams'))
+STATE_CONTRACT_PATH = Path(__file__).with_name('state_contract.json')
+STATE_CONTRACT = json.loads(STATE_CONTRACT_PATH.read_text(encoding='utf-8'))
 DIAGRAM_DIR.mkdir(parents=True, exist_ok=True)
 REPORTS.mkdir(parents=True, exist_ok=True)
 
@@ -107,7 +118,7 @@ def create_architecture(path: Path):
     d.text((55, 78), 'Single-node K3s validates the future workload model without claiming node-level high availability.', font=font(20), fill='#475569')
     draw_box(d, (65, 145, 420, 330), 'Browser', ['React product UI', 'Chat + authenticated preview'], '#EFF6FF', '#2563EB')
     draw_box(d, (520, 145, 875, 330), 'Traefik', ['TLS + wildcard ingress', 'HTTP / SSE / WSS'], '#FFF7ED', '#D97706')
-    draw_box(d, (980, 145, 1450, 330), 'Platform Services', ['Django/DRF + worker', 'PostgreSQL system of record'], '#ECFEFF', '#0F766E')
+    draw_box(d, (980, 145, 1450, 330), 'Platform Services', ['NestJS + Prisma', 'AdminJS + workers', 'PostgreSQL + Redis'], '#ECFEFF', '#0F766E')
     draw_box(d, (1535, 145, 1840, 330), 'Model Gateway', ['Scoped model route', 'No provider key in project'], '#F5F3FF', '#7C3AED')
     arrow(d, (420, 236), (520, 236), 'HTTPS/WSS')
     arrow(d, (875, 236), (980, 236), 'app/API')
@@ -139,7 +150,7 @@ def create_reload_flow(path: Path):
     d = ImageDraw.Draw(im)
     d.text((55, 28), 'Natural-language Request to Live Preview', font=font(38, True), fill='#0F172A')
     d.text((55, 80), 'The live-preview requirement is satisfied by explicit frontend and backend update paths.', font=font(20), fill='#475569')
-    actors = [('Browser',150),('Django',480),('Agent Job',810),('Workspace PVC',1140),('Preview Pod',1470),('Preview Gateway',1780)]
+    actors = [('Browser',150),('NestJS',480),('Agent Job',810),('Workspace PVC',1140),('Preview Pod',1470),('Preview Gateway',1780)]
     for name,x in actors:
         d.text((x-60, 135), name, font=font(20, True), fill='#0F172A')
         d.line((x,175,x,910),fill='#CBD5E1',width=3)
@@ -372,7 +383,7 @@ class DocBuilder:
 # ---------------- PRD data ----------------
 actors = [
     ('ACT-01','Vibe user','Creates and continues owned projects through conversation, review and preview.','Own projects only; no infrastructure or privileged administration.'),
-    ('ACT-02','Platform administrator','Supports users, reviews safe operational evidence and performs bounded recovery.','Restricted Django Admin; explicit permissions; break-glass actions are audited.'),
+    ('ACT-02','Platform administrator','Supports users, reviews safe operational evidence and performs bounded recovery.','Restricted AdminJS; explicit permissions; break-glass actions are audited.'),
 ]
 
 features = [
@@ -434,16 +445,58 @@ stories = [
     ('US-28','EP-05','Must','As a Vibe user, my active project has a rolling whole-app autosave for crash recovery without creating a new visible version every interval.','AC-VER-03'),
 ]
 
+UC_BUSINESS_RULES = {
+    'UC-01': ('BR-01', 'BR-02', 'BR-17'),
+    'UC-02': ('BR-01', 'BR-03', 'BR-13', 'BR-17'),
+    'UC-03': ('BR-01', 'BR-04', 'BR-05', 'BR-06', 'BR-13', 'BR-17'),
+    'UC-04': ('BR-01', 'BR-04', 'BR-07', 'BR-09', 'BR-13', 'BR-17'),
+    'UC-05': ('BR-01', 'BR-04', 'BR-08', 'BR-09', 'BR-13', 'BR-17'),
+    'UC-06': ('BR-01', 'BR-04', 'BR-10', 'BR-11', 'BR-12', 'BR-13', 'BR-17'),
+    'UC-07': ('BR-01', 'BR-04', 'BR-13', 'BR-14', 'BR-15', 'BR-17'),
+    'UC-08': ('BR-01', 'BR-04', 'BR-06', 'BR-12', 'BR-13', 'BR-16', 'BR-17'),
+    'UC-09': ('BR-01', 'BR-13', 'BR-16', 'BR-17'),
+}
+
+business_rules = [
+    ('BR-01','Every project, conversation, run, snapshot, route and command is owner-scoped; direct-ID and cross-owner access fail closed.','UC-01–UC-09','Object authorization on every command/query plus cross-owner negative tests.'),
+    ('BR-02','Organization, OU and Department placement is administrative metadata and never grants Stage 1 project access.','UC-01','Provision one current primary membership; same-unit users still fail project access tests.'),
+    ('BR-03','Project creation is idempotent and pins exactly one approved immutable template version.','UC-02','Unique idempotency key, atomic project/workspace initialization and retry evidence.'),
+    ('BR-04','Only one mutating operation may hold the project mutation lease; terminal attempts are immutable.','UC-03–UC-08','Lease/CAS checks and linked retry rather than in-place history rewrite.'),
+    ('BR-05','Browser refresh reconnects to the existing run and persisted event stream; it never creates a duplicate run, Job or lease.','UC-03','Run identity and event cursor survive reconnect; duplicate-creation probes fail.'),
+    ('BR-06','Stalled-agent recovery starts a linked retry only after prior Job/Pod deletion and failed write-probe evidence proves the old attempt cannot write.','UC-03, UC-08','UID-bound runtime-resource evidence; metadata lease expiry alone is rejected.'),
+    ('BR-07','A proposal becomes accepted only through one explicit durable decision; destructive changes require explicit approval.','UC-04','Decision idempotency, approval gate and pre-change checkpoint evidence.'),
+    ('BR-08','Mutable preview is owner-only and uses a one-time short-lived asymmetric JWT with exact-host audience, exchanged for a short-lived host-only cookie.','UC-05','Active kid/signature, exact claims, hashed-jti CAS consume and replay/revocation tests.'),
+    ('BR-09','Changes are classified honestly as hot update, reload, restart, rebuild, approval required or unsupported.','UC-04, UC-05','Change matrix tests; unsupported changes never report Ready/HMR.'),
+    ('BR-10','Project initialization creates Version 1; autosave is rotating recovery only; User Save and successful Restore create immutable numbered whole-app history.','UC-06','Kind/number/idempotency checks across Git, SQLite and snapshot records.'),
+    ('BR-11','A whole-app snapshot is AVAILABLE only when Git, SQLite online backup, migration/lock/template manifests and hashes verify together.','UC-06','No raw live SQLite copy; partial or mismatched capture remains unavailable.'),
+    ('BR-12','Restore is owner-only, serialized, idempotent and generation-staged; current pointers switch atomically only after code, DB, lock and health verification.','UC-06, UC-08','Before-images, provisional result, journal decision and pointer CAS; failure protects prior current state.'),
+    ('BR-13','Only transitions listed in the authoritative state contract are legal; unknown or unlisted transitions fail closed and are audited.','UC-02–UC-09','State/edge equality against Data Specification plus illegal-edge mutation tests.'),
+    ('BR-14','Capacity admission is durable, bounded and fair: owner round-robin across owners, FIFO within owner, explicit slot charges and deterministic timeout/cancel.','UC-07','CAPACITY_POOL row lock, queue sequence, durable cursor and slot-sum tests.'),
+    ('BR-15','Preview idle-stop never interrupts an active mutation and never deletes durable source, SQLite data or checkpoints.','UC-07','Lease check, route withdrawal, scale-to-zero and resume evidence.'),
+    ('BR-16','Administrative changes are restricted to named commands and typed allowlisted non-secret configuration; no shell or direct state forgery.','UC-08, UC-09','Permission, type/range, stale-write, secret-canary and immutable audit tests.'),
+    ('BR-17','Stage 1 has no Deploy button, published release, stable application URL, registry promotion or production rollback.','UC-01–UC-09','UI/content scan and route/runtime acceptance tests reject hidden release behavior.'),
+]
+business_rules = [
+    (rule_id, rule, ', '.join(uc for uc, rules in UC_BUSINESS_RULES.items() if rule_id in rules), evidence)
+    for rule_id, rule, _legacy_scope, evidence in business_rules
+]
+
 use_cases = [
-    ('UC-01','Sign in and view projects','ACT-01','Active account with one current primary default organization membership.','Sign in → validate organization placement → secure session → owner-scoped project list.','Invalid membership fails provisioning closed; same OU/Department never reveals another owner’s project.','Authenticated session; default Organization/OU/Department exists; no cross-owner project visibility.','US-01, US-02, US-27'),
-    ('UC-02','Create and open project','ACT-01','Authenticated user; approved template available.','Enter project name/goal → create once → initialize durable workspace → open project.','Initialization remains recoverable and retry does not create a duplicate.','Project owns one template lock, workspace and preview identity.','US-03, US-04'),
-    ('UC-03','Use and recover Vibe Code chatbot','ACT-01','Owned project; session available.','Open concise prompt guidance → submit outcome → persist message → stream progress → refresh/reconnect if needed → show result and usage.','A page refresh never starts a duplicate Cline run. A missing heartbeat shows Recover agent session; recovery terminates the old attempt before a linked retry.','Ordered messages/events survive reconnect; one mutation lease prevents overlapping Cline attempts.','US-05–US-08, US-24–US-26'),
-    ('UC-04','Review and decide a change','ACT-01','Agent produced a validated proposal.','Open diff/preview → accept, reject or iterate → persist decision.','Destructive operations pause for explicit approval; failure preserves last healthy version.','Accepted decision, audit evidence and checkpoint are linked to the run.','US-09–US-11'),
-    ('UC-05','Observe live preview update','ACT-01','Preview is ready; proposed edit is eligible for live update.','Agent writes change → authenticated owner preview updates automatically → UI confirms Ready for review.','Unsupported change is classified as restart, rebuild or approval required; another owner cannot open the preview or live-update channel.','Frontend and backend update paths pass through the authenticated owner route.','US-12–US-14, US-20'),
-    ('UC-06','Save and restore a whole-app version','ACT-01','Owned active project; no conflicting mutation.','System autosaves a rolling recovery state → user selects Save → next numbered code-and-SQLite version becomes available → user may select an earlier version and Restore.','No-change autosave is skipped. Restore creates new history rather than erasing it. Any code, database, lock or health failure leaves the previous current version protected.','One verified manifest binds the Git commit, SQLite backup hash, template/lock/migration metadata and actor; preview matches the restored result.','US-15, US-16, US-28'),
-    ('UC-07','Stop, idle-stop and resume','ACT-01','Owned active or stopped project.','Idle warning → stop when inactive → explicit Open resumes → readiness confirmed.','Active mutation blocks idle-stop; failed stop/start is recoverable.','Source/checkpoints persist while mutable runtime may be recreated.','US-17–US-19'),
-    ('UC-08','Recover a failed operation','ACT-01\nACT-02','Stable error/reference exists.','User recovers a stalled agent, retries/reverts or administrator performs bounded reconcile.','No automatic replay of uncertain user mutations; prior attempt must be terminal and UID-bound old-Job/Pod deletion plus failed write-probe evidence must persist before retry.','New linked attempt and audit evidence; prior terminal history is unchanged.','US-21, US-23, US-26'),
-    ('UC-09','Perform restricted administration','ACT-02','Administrator session and explicit permission.','Inspect safe state → issue allowlisted command/configuration → validate → audit result.','No arbitrary shell, infrastructure definition, secret value or direct state forgery.','Accepted and denied privileged actions are attributable and reviewable.','US-21, US-22'),
+    ('UC-01','Sign in and view projects','ACT-01','M01 — Identity, organization placement and owned projects','Presentation + Application + Domain','Active account with one current primary default organization membership.','Sign in → validate organization placement → create secure session → show owner-scoped project list.','BR-01, BR-02, BR-17','Secure session, CSRF, session rotation and object-level owner authorization.','Invalid membership fails provisioning closed; same OU/Department never reveals another owner’s project.','Authenticated session; default Organization/OU/Department exists; no cross-owner project visibility.','US-01, US-02, US-27'),
+    ('UC-02','Create and open project','ACT-01','M02 — Project and immutable template registry','Presentation + Application + Domain + Runtime','Authenticated owner; approved template available; idempotency key allocated.','Enter project name and goal → create once → pin template → initialize Git/SQLite/workspace → open project.','BR-01, BR-03, BR-13, BR-17','Owner command, idempotency uniqueness, template allowlist and path-safe initialization.','Initialization remains recoverable and retry returns the same project rather than creating a duplicate.','Project owns one template lock, generated repository, workspace and preview identity.','US-03, US-04'),
+    ('UC-03','Use and recover Vibe Code chatbot','ACT-01','M03 — Conversation, Agent adapter and Agent Job','Presentation + Application + Runtime','Owned project; durable chat session exists or may be created; mutation slot is available or queueable.','Open prompt guidance → submit outcome → persist message → admit one run → stream progress → reconnect or recover → show result and usage.','BR-01, BR-04, BR-05, BR-06, BR-13, BR-17','Owner/session checks, one mutation lease, admitted Job identity, heartbeat and UID-bound old-writer revocation.','Refresh reconnects without duplication. A stale heartbeat exposes recovery; uncertain old writers keep mutation blocked.','Ordered messages/events survive reconnect; linked attempts and runtime evidence remain immutable and attributable.','US-05–US-08, US-24–US-26'),
+    ('UC-04','Review and decide a change','ACT-01','M04 — Change proposal, diff, approval and decision','Presentation + Application + Domain','Agent produced a validated proposal tied to the owned project and run.','Open safe diff and preview → inspect impact → accept, reject or iterate → persist one decision → checkpoint accepted result.','BR-01, BR-04, BR-07, BR-09, BR-13, BR-17','Owner authorization, safe path/diff redaction, explicit destructive approval and decision idempotency.','Rejected or failed work never replaces the last healthy accepted version; approval denial is terminal evidence.','Decision, audit evidence, run and accepted checkpoint are linked exactly once.','US-09–US-11'),
+    ('UC-05','Observe live preview update','ACT-01','M05 — Preview Gateway, route and mutable Preview Pod','Presentation + Gateway + Runtime','Owned preview is admitted and healthy; proposed edit is eligible for the classified update path.','Request owner preview → exchange the one-time exact-audience JWT → load preview → apply eligible source change → HMR/reload or bounded restart → confirm Ready for review.','BR-01, BR-08, BR-09, BR-13, BR-17','Active kid/signature, exact JWT claims, hashed-jti CAS consume, host-only cookie and fixed-target routing.','Unsupported change is classified as restart, rebuild, approval required or unsupported; stale/replayed/cross-owner route is denied.','Frontend/backend update and WSS paths use the authenticated owner route with safe readiness evidence.','US-12–US-14, US-20'),
+    ('UC-06','Save and restore a whole-app version','ACT-01','M06 — Git workspace, snapshot and Restore transaction','Presentation + Application + Persistence + Runtime','Owned project; no conflicting mutation; target snapshot is AVAILABLE and same-project for Restore.','Capture rotating autosave when changed → user selects Save → verify next numbered whole-app version → select earlier version → stage and verify Restore → atomically switch current pointers.','BR-01, BR-04, BR-10, BR-11, BR-12, BR-13, BR-17','Owner-only idempotent command, project lease, path-safe Git, SQLite online backup, hashes, before-images and pointer CAS.','No-change autosave is skipped. Any code, DB, lock, hash, health or cutover failure protects the previous current generation and enters verified rollback/manual intervention.','Manifest binds Git, SQLite, migration/lock/template metadata and actor; successful Restore creates new history and healthy preview.','US-15, US-16, US-28'),
+    ('UC-07','Stop, idle-stop and resume','ACT-01','M07 — Workspace lifecycle and capacity admission','Presentation + Application + Runtime','Owned active, queued or stopped project; current mutation and capacity state are known.','Warn on idle → verify no active mutation → withdraw route and stop → retain durable workspace → owner opens project → fair admission → readiness confirmed.','BR-01, BR-04, BR-13, BR-14, BR-15, BR-17','Owner command, pool row lock, slot/reserve checks, durable fairness cursor, lease check and generation-safe route.','Active mutation blocks idle-stop; full queue shows bounded Waiting/cancel/timeout; failed start/stop remains recoverable.','Source, SQLite and checkpoints persist while disposable runtime is stopped or recreated.','US-17–US-19'),
+    ('UC-08','Recover a failed operation','ACT-01\nACT-02','M08 — Recovery controller, errors, evidence and audit','Presentation + Application + Runtime + Operations','Stable safe error/reference exists; actor owns the project or has explicit bounded administrator permission.','Inspect safe status → choose retry, revert, recover agent or bounded reconcile → validate prior terminal state and proof → create linked attempt → verify healthy result.','BR-01, BR-04, BR-06, BR-12, BR-13, BR-16, BR-17','Owner or explicit admin permission, idempotency, prior-attempt UID proof, mutation serialization and redacted audit.','No automatic replay of uncertain mutation. Missing or mismatched proof fails closed and keeps route withdrawn/mutation blocked.','New linked attempt and correlation evidence exist; prior terminal history and last healthy version remain unchanged.','US-21, US-23, US-26'),
+    ('UC-09','Perform restricted administration','ACT-02','M09 — Restricted administration and typed configuration','Presentation + Application + Operations','Active administrator session; explicit role/permission; expected aggregate row version loaded.','Inspect safe state → choose named allowlisted command or config key → validate permission/type/range/version → commit CAS and audit → show safe result.','BR-01, BR-13, BR-16, BR-17','Restricted AdminJS, explicit permission, last-admin protection, typed non-secret allowlist and atomic CAS plus command dedup.','Unknown command/key, secret value, wrong type/range, stale row or direct-state attempt is rejected atomically and audited.','Accepted and denied privileged actions are attributable, redacted and reviewable.','US-21, US-22'),
+]
+# Business Rule references are derived from one canonical UC mapping; tuple literals above
+# remain descriptive source data only and cannot override the released mapping.
+use_cases = [
+    use_case[:7] + (', '.join(UC_BUSINESS_RULES[use_case[0]]),) + use_case[8:]
+    for use_case in use_cases
 ]
 
 security_baseline = [
@@ -534,6 +587,41 @@ decisions = [
     ('DEC-13','Whole-app version model','main mirrors the latest saved version; workspace/<project-id> holds active work; interval autosave is rotating recovery state; Save creates a numbered immutable code+SQLite version; Restore creates new history','CONFIRMED DIRECTION'),
 ]
 
+VIBE_LAYOUT = DIAGRAM_DIR / 'vibe-page-layout.png'
+UI_COMPONENT_CONTRACT = DIAGRAM_DIR / 'vibe-page-component-contract.png'
+create_vibe_layout(VIBE_LAYOUT)
+create_ui_component_contract(UI_COMPONENT_CONTRACT)
+
+UC_FLOW_PATHS = {}
+for use_case in use_cases:
+    uid = use_case[0]
+    path = DIAGRAM_DIR / f'{uid.lower()}-flow.png'
+    create_use_case_flow(path, use_case)
+    UC_FLOW_PATHS[uid] = path
+
+STATE_DIAGRAM_PATHS = []
+for index, machine in enumerate(STATE_CONTRACT['machines'], 1):
+    path = DIAGRAM_DIR / f"state-{index:02d}-{machine['field'].lower().replace('.', '-')}.png"
+    create_state_diagram(path, machine)
+    STATE_DIAGRAM_PATHS.append((machine, path))
+
+TRANSACTION_DIAGRAMS = [
+    ('User Save', DIAGRAM_DIR / 'tx-user-save.png', ['User','NestJS','Worker','Git + SQLite','PostgreSQL','Preview'], [
+        (0,1,'Save command'),(1,2,'idempotency + lease'),(2,3,'commit + online backup'),(3,2,'hashes + manifests'),(2,4,'AVAILABLE + next version CAS'),(4,5,'resume current generation'),(5,0,'saved version visible')],
+     'Any capture/hash/manifest/health failure creates no AVAILABLE snapshot and does not advance current_snapshot_id or version number.'),
+    ('Whole-app Restore', DIAGRAM_DIR / 'tx-restore.png', ['User','NestJS','Worker','Staging generation','PostgreSQL','Preview'], [
+        (0,1,'Restore target'),(1,2,'owner + idempotency + lease'),(2,5,'withdraw route / quiesce'),(2,3,'materialize code + SQLite'),(3,2,'verify hashes/locks/health'),(2,4,'journaled pointer CAS'),(4,5,'activate exact generation'),(5,0,'verified result')],
+     'Before-images and one provisional RESTORE_RESULT exist before mutation. Failure restores verified prior pointers or enters MANUAL_INTERVENTION with route withdrawn.'),
+    ('Owner-only Preview Authentication', DIAGRAM_DIR / 'tx-preview-auth.png', ['Browser','NestJS','Redis','PostgreSQL','Preview Gateway','Preview Pod'], [
+        (0,1,'request with opaque cookie + CSRF'),(1,2,'validate session + version + expiry'),(1,3,'persist jti/kid/aud/generation grant'),(1,0,'return one-time JWT <=60s'),(0,4,'exchange at exact preview host'),(4,3,'CAS ISSUED jti to ACTIVE cookie hash'),(4,0,'set host-only preview cookie'),(4,5,'strip platform credentials; proxy')],
+     'Replay, wrong kid/audience/host/owner/session/project/generation, expiry or revocation fails closed. Redis session loss denies JWT issue; PostgreSQL remains replay authority.'),
+    ('Durable Capacity Admission', DIAGRAM_DIR / 'tx-capacity-admission.png', ['User','NestJS','Capacity Worker','CAPACITY_POOL','Runtime Controller','K3s'], [
+        (0,1,'start preview / run'),(1,2,'durable enqueue'),(2,3,'row lock + owner round-robin/FIFO'),(3,2,'reserve explicit slots'),(2,4,'admitted command'),(4,5,'create component resources'),(5,4,'UID/readiness observation'),(4,1,'READY or bounded failure')],
+     'Queue depth, timeout, reserve and slot-sum limits are deterministic. Admission never oversubscribes silently or turns capacity exhaustion into login/generic failure.'),
+]
+for title, path, lanes, steps, guard in TRANSACTION_DIAGRAMS:
+    create_sequence_diagram(path, title, lanes, steps, guard)
+
 # ---------------- build PRD ----------------
 prd = DocBuilder(
     'Vibe-Code Platform\nNo-Code POC PRD & Delivery Plan',
@@ -576,7 +664,7 @@ prd.para('Explicit Stage 1 non-goals','Heading 2')
 for item in [
     'No Deploy button, production release publication, stable application subdomain, promotion or rollback.',
     'No user-supplied infrastructure definition or privileged host access.',
-    'No custom admin portal; restricted Django Admin is a developer/break-glass tool only.',
+    'No custom admin portal; restricted AdminJS is a developer/break-glass tool only.',
     'No multi-node high availability, service mesh, GitOps controller, custom operator or CRD.',
     'No simultaneous multi-user editing of one project and no multi-replica mutable preview.',
 ]: prd.bullet(item)
@@ -590,7 +678,15 @@ prd.table(['User sees','User does not see'],[
     ('Plain-language restart/rebuild status','Runtime commands or infrastructure definitions'),
     ('Usage/cost estimate and approval prompts','Provider master key or unrestricted model configuration'),
 ], [3.5,3.5], 8)
-prd.page()
+prd.para('Vibe page layout','Heading 2')
+prd.para('The Vibe page is a deliberate two-pane product experience: durable conversation and change control on the left, authenticated generated-application preview on the right, with project/version status above. The picture is an interaction contract, not a promise of final visual styling.')
+prd.image(VIBE_LAYOUT, 7.05, 'Figure 2 — Vibe page layout: metadata, conversation, progress and decisions beside the owner-only live preview.')
+prd.table(['Region','Required content','Forbidden content'],[
+    ('Project header','Project identity, owner-safe status, current numbered version, last Save, History and full-preview action.','Raw namespace, Pod, host, port, command or infrastructure state.'),
+    ('Conversation pane','Durable messages/events, prompt guidance, progress, Stop, safe diff decision, Save and Restore.','Source editor, terminal, unrestricted tool output or provider credential.'),
+    ('Preview pane','Owner-only generated UI, readiness/live-update state and fixed application/API routes.','Arbitrary upstream, platform session cookie or Deploy/publish control.'),
+    ('Status and recovery','Waiting, Recovering, Action required, autosave-versus-version distinction and correlation reference.','Generic success when a required verification is incomplete.'),
+], [1.35,3.5,2.15], 7.2)
 
 prd.para('4. Feature list','Heading 1')
 prd.para('This is the Stage 1 product feature catalogue. Technical implementation references are intentionally kept in the separate Technical Design.')
@@ -608,23 +704,60 @@ prd.table(['ID','Epic','Priority','User Story','Acceptance'], stories, [.52,.55,
 prd.page()
 
 prd.para('7. Use Case summary','Heading 1')
-prd.table(['ID','Use Case','Actors','Stories'], [(x[0],x[1],x[2],x[7]) for x in use_cases], [.55,3.1,1.4,1.6], 7.4)
+prd.table(['ID','Use Case','Actors','Stories'], [(x[0],x[1],x[2],x[11]) for x in use_cases], [.55,3.1,1.4,1.6], 7.4)
+prd.callout('Each detailed Use Case is a ten-field executable product contract. Business Rules are canonical BR references, not hidden prose in the flow.', PALE_TEAL, TEAL)
 prd.page()
 prd.para('Detailed Use Cases','Heading 2')
-for idx, uc in enumerate(use_cases):
-    uid,title,actor,pre,flow,failure,evidence,story_ref = uc
-    if idx and idx % 2 == 0:
+for index, use_case in enumerate(use_cases):
+    uid,title,actor,module,layer,pre,flow,rules,security_guard,failure,evidence,story_ref = use_case
+    if index:
         prd.page()
     prd.para(f'{uid} — {title}','Heading 2')
     prd.table(['Field','Definition'],[
-        ('Actors',actor),('Preconditions',pre),('Main flow',flow),('Failure / recovery',failure),('Acceptance evidence',evidence),('Story trace',story_ref)
-    ], [1.55,5.45], 8.0)
+        ('Actors',actor),
+        ('Module',module),
+        ('Layer',layer),
+        ('Preconditions',pre),
+        ('Main flow',flow),
+        ('Business Rules',rules),
+        ('Security Guard',security_guard),
+        ('Failure / Recovery',failure),
+        ('Acceptance evidence',evidence),
+        ('Story trace',story_ref),
+    ], [1.55,5.45], 7.5)
+    prd.image(UC_FLOW_PATHS[uid], 7.05, f'Figure {uid} — Main, alternative/failure and evidence flow for {title}.')
 
 prd.page()
+prd.para('Business Rule Register','Heading 1')
+prd.para('Business Rules constrain every Use Case independently of screen wording. A Use Case may reference only IDs in this register; Technical realization must trace the same IDs rather than redefine them.')
+prd.table(['ID','Rule','Applies to','Enforcement / evidence'], business_rules, [.65,3.75,1.05,1.55], 6.8)
+
+prd.landscape()
+prd.para('Authoritative state diagrams','Heading 1')
+prd.callout('These diagrams are rendered from the repository state contract that must exactly match Data Specification sheets “Enum Catalogue” and “State Transitions”. Filled dots mark initial states; ringed dots mark terminal states. Every unlisted edge fails closed.', PALE_AMBER, '92400E')
+for index, (machine, path) in enumerate(STATE_DIAGRAM_PATHS, 1):
+    if index > 1:
+        prd.page()
+    prd.para(machine['field'],'Heading 2')
+    image = Image.open(path)
+    state_height_cap = 5.0 if index == 1 else 5.85
+    display_width = min(9.7, state_height_cap * image.width / image.height)
+    image.close()
+    prd.image(path, display_width, f"Figure S-{index:02d} — {machine['field']}: {len(machine['states'])} states and {len(machine['transitions'])} legal directed transitions.")
+prd.portrait()
+
 prd.para('8. Security baseline','Heading 1')
 prd.para('The baseline is written as observable controls. Detailed runtime, container and network implementation belongs in the Technical Design.')
 prd.table(['ID','Control area','Baseline requirement','Acceptance evidence'], security_baseline, [.58,1.35,3.1,2.0], 6.9)
 prd.callout('Any unknown route, ownership, quota, secret, startup or lifecycle condition fails closed. The platform must not guess a successful state.', PALE_RED, '991B1B')
+prd.para('Product architecture boundary','Heading 2')
+prd.table(['Concern','Approved Stage 1 boundary'],[
+    ('Platform control plane','NestJS + Prisma + PostgreSQL. This is the product platform, not generated-app code.'),
+    ('Restricted administration','AdminJS exposes only allowlisted properties and named NestJS commands behind the same RBAC/CSRF/owner checks; no unrestricted direct CRUD.'),
+    ('Browser identity','An opaque HttpOnly Secure session cookie references Redis server-side session state. Long-lived browser JWT/localStorage authentication is prohibited; Redis session loss requires fresh sign-in.'),
+    ('Preview/service exchange','Only short-lived, audience-bound asymmetric JWTs with kid/jti/replay/revocation controls may cross a service boundary; generated preview code never receives platform session/JWT credentials.'),
+    ('Generated application','React/Vite + FastAPI + SQLite in the project workspace. It cannot access platform PostgreSQL or Redis.'),
+], [2.0,5.0], 7.6)
 prd.page()
 
 prd.para('9. Acceptance criteria','Heading 1')
@@ -673,7 +806,7 @@ for item in [
     'Approved model gateway/provider, residency and hard cost cap.',
     'Project, chat, audit, checkpoint, workspace and backup retention durations.',
     'Exact launch admission limits after measured runtime load evidence.',
-    'Whether any read-only guest preview belongs in a later stage; Stage 1 mutable preview remains owner-only.',
+    'Any future Stage 2 sharing or delegated authorization model requires a separate product and security decision; Stage 1 remains owner-only.',
     'Future team workspace and project membership roles; OU/Department placement must never become an implicit sharing rule.',
 ]: prd.bullet(item)
 
@@ -700,19 +833,21 @@ tech_decisions = [
     ('TD-DEC-09','Cline session recovery','Persist/reconnect first; prove old Job/Pod write revocation before an in-place linked retry','CONFIRMED DIRECTION','Lease fencing metadata cannot revoke PVC writes; an unproven old writer keeps mutation blocked.'),
     ('TD-DEC-10','Organization hierarchy','Normalized Organization/OU/Department tree plus effective-dated user membership','CONFIRMED DIRECTION','Stage 1 authorization still uses PROJECT.owner_id only; future project membership is a separate contract.'),
     ('TD-DEC-11','Whole-app versioning','main mirrors latest saved version; workspace/<project-id> holds active work; immutable snapshot binds Git + SQLite','CONFIRMED DIRECTION','One branch per Save is rejected; autosaves rotate and Restore creates new history.'),
+    ('TD-DEC-12','Platform application stack','NestJS + Prisma + PostgreSQL with restricted AdminJS','CONFIRMED','AdminJS is an allowlisted UI over NestJS services, never unrestricted direct CRUD or a second authorization path.'),
+    ('TD-DEC-13','Session and token model','Opaque browser session in Redis; short-lived audience-bound JWT only for preview/service exchange','CONFIRMED DIRECTION','No long-lived browser JWT/localStorage. Session/cache failure, CSRF, rotation, revocation and replay fail closed.'),
 ]
 
 components = [
-    ('Product UI','React/Vite/TypeScript','Projects, chatbot, progress, diff, preview and checkpoints.','Stateless product frontend.'),
-    ('Control plane','Django/DRF','Identity, organization placement, ownership, desired state, commands, audit and API.','PostgreSQL is authoritative; organization membership is not a project grant.'),
-    ('Background worker','Django worker / queue adapter','Admitted commands, reconciliation, autosave, snapshot/restore and scheduled work.','Snapshot/restore uses the same project mutation lease; exact queue mechanism confirmed by spike.'),
-    ('Platform database','PostgreSQL','Users, projects, chat, runs, routes, state and audit.','Not exposed to generated apps.'),
+    ('Product UI','React/Vite/TypeScript','Projects, chatbot, progress, diff, preview and checkpoints.','Stateless product frontend; no token in localStorage.'),
+    ('Control plane','NestJS + Prisma','Identity, ownership, desired state, commands, API and admitted background workers.','PostgreSQL is authoritative; Prisma transactions wrap CAS/dedup operations.'),
+    ('Administration/session','AdminJS + Redis','Restricted administration, opaque server-side sessions, CSRF state and bounded cache.','AdminJS actions call NestJS services; Redis session loss fails authentication closed.'),
+    ('Platform database','PostgreSQL','Users, RBAC, projects, chat, runs, routes, state, token replay grants and audit.','Prisma-managed schema; not exposed to generated apps.'),
     ('Ingress','Traefik','TLS, app route, wildcard preview route, HTTP/SSE/WSS.','Dashboard private or disabled.'),
-    ('Preview Gateway','Authenticated reverse proxy','Owner authorization, project route lookup and same-origin path routing.','Does not trust user-supplied upstreams.'),
+    ('Preview Gateway','Authenticated reverse proxy','Owner authorization, project route lookup and same-origin path routing.','Does not trust user-supplied upstreams or platform credentials.'),
     ('Agent adapter','Pinned Cline SDK service','Runs/cancels agent, persists events, emits heartbeat and maps progress/recovery.','Page reconnect never starts a new run; no provider master key in workspace.'),
-    ('Agent Job','Kubernetes Job','Mounts project workspace and writes validated files.','One mutating operation per project; bounded termination grace.'),
+    ('Agent Job','Kubernetes Job','Mounts project workspace and writes validated files.','One mutation/project; bounded termination grace.'),
     ('Preview Pod','Vite + Uvicorn containers','Mutable frontend/backend preview, zero or one replica.','Disposable; not a release artifact.'),
-    ('Workspace PVC','local-path-retain RWO PVC','Generated source, Git working tree and SQLite app data.','2 GiB baseline; UID/GID/fsGroup 10001; Retain; restore from verified whole-app snapshot to a new PVC.'),
+    ('Workspace PVC','local-path-retain RWO PVC','Generated source, Git working tree and SQLite app data.','2 GiB baseline; UID/GID/fsGroup 10001; Restore uses a verified new generation.'),
 ]
 
 resource_model = [
@@ -730,7 +865,7 @@ resource_model = [
 
 routing = [
     ('app.<domain>','/','Product UI service','Authenticated product experience.'),
-    ('app.<domain>','/api/*','Django/DRF service','Platform API; session/CSRF/auth enforced.'),
+    ('app.<domain>','/api/*','NestJS service','Platform API; session/CSRF/auth enforced.'),
     ('*.preview.<domain>','/','Preview Gateway → project frontend target','Vite HTML/assets and HMR endpoint.'),
     ('*.preview.<domain>','/api/*','Preview Gateway → project backend target','Same-project FastAPI only; path contract is immutable.'),
     ('*.preview.<domain>','WebSocket upgrade','Preview Gateway → Vite HMR','WSS, forwarded host/protocol and compatible idle timeout.'),
@@ -762,7 +897,8 @@ lifecycle = [
 ]
 
 security_detail = [
-    ('Identity','Django session and CSRF for product/admin; backend owner checks on every object.','SEC-01, SEC-02'),
+    ('Identity','NestJS guards use an opaque HttpOnly Secure browser cookie backed by Redis server-side session state, per-session CSRF protection and Prisma/PostgreSQL owner checks on every object. Long-lived browser JWTs are prohibited.','SEC-01, SEC-02'),
+    ('AdminJS','Mounted behind the same NestJS authentication/CSRF/RBAC guards; resources, properties and actions are explicit allowlists. Secret fields, raw state edits and unrestricted CRUD are disabled.','SEC-01, SEC-07, SEC-09'),
     ('Organization hierarchy','Default Organization → OU → Department plus one effective-dated primary user membership.','SEC-01; PROJECT.owner_id remains the only normal Stage 1 project grant.'),
     ('Route authorization','Preview Gateway validates active session, owner, project state and route generation before proxying.','SEC-01, SEC-02'),
     ('Pod security','Non-root; no privileged mode; no hostNetwork, hostPID, hostIPC, hostPath or containerd socket.','SEC-04'),
@@ -794,7 +930,7 @@ resource_profiles = [
 ]
 
 failure_modes = [
-    ('Django Pod crash','Kubernetes restarts Pod; other stateless replica may serve new request.','Persist session/event truth externally; reconnect test.'),
+    ('NestJS Pod crash','Kubernetes restarts Pod; other stateless replica may serve new request.','Persist session/event truth externally; reconnect test.'),
     ('Preview Pod crash','Recreated against same PVC; route remains unready until health passes.','No loss of Git/checkpoint/SQLite; bounded readiness.'),
     ('Agent Job failure','Run fails safely; no accepted checkpoint; retry creates a linked Job/run.','Pre-change checkpoint and immutable terminal evidence.'),
     ('Cline heartbeat stalls','UI shows Recover agent session; watchdog/owner requests STOPPING and proves old Job/Pod write revocation before an in-place retry.','Lease fencing alone is insufficient; prove no overlapping writer/Job/run and preserve the last healthy checkpoint.'),
@@ -804,6 +940,7 @@ failure_modes = [
     ('Capacity exhausted','Command becomes queued or rejected with bounded retry.','Do not present login failure or generic server error.'),
     ('Single node fails','All K3s/platform/preview services stop.','Restore/rebuild from durable backup; no HA claim.'),
     ('PostgreSQL fails','Control plane cannot safely authorize or mutate.','Fail closed; restore procedure required.'),
+    ('Redis fails','Current browser authentication and non-idempotent replay-protected calls fail closed; cache-only reads bypass to PostgreSQL.','Restore Redis, deny missing sessions, prove no unbounded-login or browser-JWT fallback, and require fresh sign-in after session loss.'),
     ('Snapshot part fails or hashes disagree','Snapshot remains non-AVAILABLE and PROJECT.current_snapshot_id is unchanged.','Delete/quarantine partial object; reconcile Git main to last AVAILABLE snapshot; retry with same idempotency key.'),
 ]
 
@@ -815,8 +952,12 @@ version_matrix = [
     ('Node.js','22 target','Container image digest','Vite and @cline/sdk compatibility','PROVISIONAL'),
     ('@cline/sdk','0.0.79','Exact lockfile','Events, cancel, page reconnect, heartbeat/stuck recovery and isolation','CONFIRMED TARGET'),
     ('Vite','TBD','Frontend lockfile','HMR over wildcard WSS','DECISION REQUIRED'),
-    ('FastAPI/Uvicorn','TBD','Python lockfile','Reload, readiness and reconnect','DECISION REQUIRED'),
-    ('Django/DRF/PostgreSQL','TBD','Platform lock/image digest','Migration, auth, concurrency and backup','DECISION REQUIRED'),
+    ('FastAPI/Uvicorn','TBD','Generated-app Python lockfile','Reload, readiness and reconnect','DECISION REQUIRED'),
+    ('NestJS','TBD pinned major/minor','Platform Node lockfile + image digest','API, guards, SSE/WSS, worker and shutdown compatibility','DECISION REQUIRED'),
+    ('Prisma','TBD pinned version','Platform Node lockfile + migration history','PostgreSQL schema, interactive transactions, CAS row-count and rollback tests','DECISION REQUIRED'),
+    ('AdminJS','TBD pinned version','Platform Node lockfile','NestJS/Prisma adapter, action/property allowlist and auth/CSRF regression','DECISION REQUIRED'),
+    ('PostgreSQL','TBD pinned image digest','Platform deployment manifest','Migration, concurrency, backup/restore and failover procedure','DECISION REQUIRED'),
+    ('Redis','TBD pinned image digest','Platform deployment manifest','Session TTL/revoke, cache fallback, replay and outage fail-closed tests','DECISION REQUIRED'),
     ('Git','TBD pinned distribution','Workspace image package lock','SHA format, ref CAS, path allowlist, crash recovery and repository ownership','DECISION REQUIRED'),
 ]
 
@@ -869,6 +1010,26 @@ tech.para('3. Architecture context','Heading 1')
 tech.image(ARCHITECTURE, 7.1, 'Figure 1 — Stage 1 technical context. Service-level distribution exists on one host; node-level HA does not.')
 tech.para('Component catalogue','Heading 2')
 tech.table(['Component','Technology','Responsibility','Boundary'], components, [1.45,1.45,2.75,1.35], 6.8)
+tech.para('Vibe page component and layout contract','Heading 2')
+tech.para('The PRD owns the user-visible two-pane layout. This view defines which technical component owns each region and where credentials, commands and generated application traffic must not cross.')
+tech.image(UI_COMPONENT_CONTRACT, 7.1, 'Figure 2 — Vibe page component ownership and trust boundaries. The generated preview never receives platform credentials or control-plane authority.')
+tech.table(['Product region','Technical owner','Data / protocol contract','Failure posture'],[
+    ('Project header and status','Product UI + NestJS','Owner-scoped project/version/status API; safe correlation reference.','Unknown or stale status shows Action required, never fabricated Ready.'),
+    ('Conversation and controls','Product UI + NestJS + Agent adapter','Durable messages/events; idempotent Stop/Save/Restore/decision commands.','Reconnect existing run; uncertain mutation remains blocked.'),
+    ('Preview pane','Preview Gateway + Preview Pod','One-time exact-audience JWT, host-only cookie, fixed frontend/API/WSS targets.','Replay, stale generation, wrong owner/session/host or unready route is denied.'),
+    ('Full preview','Same Preview Gateway contract','New viewport, not a new authorization or runtime path.','No domain-wide cookie, arbitrary upstream or stable published route.'),
+], [1.45,1.55,2.8,1.2], 6.9)
+tech.para('Authentication, sessions and token boundaries','Heading 2')
+tech.para('The first-party browser uses an opaque HttpOnly Secure session cookie with a Redis server-side session. A long-lived JWT is never stored in browser JavaScript or localStorage. PostgreSQL remains authoritative for users, RBAC, audit and one-time preview replay grants; Redis is disposable session/cache infrastructure, not the business system of record.')
+tech.table(['Flow','Credential','Store / authority','Lifetime','Revocation / failure'],[
+    ('Browser login','Opaque random session ID in `__Host-vibe_session`; HttpOnly, Secure, SameSite=Lax; regenerated at login/privilege change.','Redis server-side session; AUTH_USER/RBAC in PostgreSQL through Prisma.','Bounded idle + absolute TTL; exact values DECISION REQUIRED.','Logout, password/role/session_version change or admin revoke deletes all matching Redis sessions; Redis unavailable fails authentication closed.'),
+    ('State-changing browser request','Per-session CSRF secret rendered as token and sent in a custom header; Origin/Referer allowlist.','CSRF hash and session metadata in Redis.','Same bound as session; rotate with session.','Missing/mismatch/wrong origin returns 403; no cookie-only mutation endpoint.'),
+    ('AdminJS','Same opaque server-side session plus PLATFORM_ADMIN role and action permission; step-up hook for destructive/break-glass actions.','NestJS guard + Prisma/PostgreSQL RBAC; AdminJS is UI only.','Same session; shorter configurable idle policy may apply.','No direct model-wide CRUD bypass, secret field rendering, arbitrary action or raw state edit; accepted/denied actions audited.'),
+    ('Preview JWT exchange','One-time short-lived JWT with `iss`, exact-host `aud`, `sub`, session hash, project, workspace generation, `jti`, `iat`, `exp`; signed by active asymmetric key.','AUTH_KEYSET public metadata + PostgreSQL PREVIEW_AUTH_GRANT one-time CAS; private key is a secret reference.','At most 60 seconds and one successful exchange.','Replay, wrong audience/session/project/generation, expired token or revoked grant fails closed.'),
+    ('Preview browsing','Opaque host-only preview cookie; no platform session/JWT forwarded to generated code.','PostgreSQL PREVIEW_AUTH_GRANT authority; bounded Redis read-through cache may accelerate only positive state with short TTL.','Short configurable TTL no longer than platform session/grant.','Every HTTP/WSS handshake revalidates binding; cache failure falls back to PostgreSQL, never grants from stale cache.'),
+    ('Internal service call','Short-lived JWT with service `sub`, exact `aud`, scoped permissions and unique `jti`; asymmetric key rotation through `kid`.','AUTH_KEYSET public metadata; issuer policy in NestJS; replay cache in Redis only where endpoint is non-idempotent.','Maximum five minutes; no refresh token.','Unknown `kid`, wrong audience/scope, expiry or replay fails closed; rotate keys with overlap and audited retirement.'),
+], [1.1,2.4,1.8,1.2,1.5], 6.4)
+tech.callout('Redis failure policy: authenticated browser requests fail closed because current sessions are unavailable. Cache-only reads bypass Redis and load authoritative PostgreSQL through Prisma. The platform never falls back to a self-contained browser JWT that cannot be revoked.', PALE_RED, '991B1B')
 tech.page()
 
 tech.para('4. K3s project runtime model','Heading 1')
@@ -885,7 +1046,7 @@ for item in [
 ]: tech.bullet(item)
 tech.para('Load-balancing boundary','Heading 2')
 tech.table(['Workload','Replica posture','Meaning'],[
-    ('Django/DRF and Preview Gateway','Two same-node replicas where useful','Kubernetes Service can distribute new requests; shared state must be external.'),
+    ('NestJS and Preview Gateway','Two same-node replicas where useful','Kubernetes Service can distribute new requests; shared state must be external.'),
     ('Each project Preview Pod','Zero or one replica','No horizontal balancing of one mutable preview.'),
     ('Agent Jobs','Several projects concurrently within global admission','One active mutating Job per project.'),
     ('PostgreSQL / K3s node','Single Stage 1 failure domain','No hardware or database HA claim.'),
@@ -896,7 +1057,7 @@ tech.para('5. End-to-end live update design','Heading 1')
 tech.image(RELOAD_FLOW, 7.1, 'Figure 2 — Explicit frontend HMR, backend reload and persistence flow.')
 tech.para('Authoritative sequence','Heading 2')
 for item in [
-    'Django persists the user message and creates an admitted AGENT_RUN.',
+    'NestJS persists the user message and creates an admitted AGENT_RUN.',
     'The runtime controller creates one bounded Agent Job for the project generation.',
     'The Job mounts the project Workspace PVC and writes only permitted paths.',
     'Vite observes eligible frontend changes and sends an HMR update over the existing WSS route.',
@@ -917,9 +1078,9 @@ tech.callout('uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload', LIGHT, 
 tech.para('Uvicorn reload is allowed only in the mutable preview. A Stage 2 published application must use an immutable production command without --reload.', after=5)
 tech.para('Preview Gateway authorization','Heading 2')
 for item in [
-    'The platform UI requests a one-time preview ticket through its host-only Django session. The exact preview host exchanges that ticket once for a short-lived HttpOnly, Secure, SameSite=Strict host-only preview cookie bound to owner, project, workspace generation, audience and session; raw Django cookies are never domain-wide or forwarded to generated code.',
-    'Every Preview Gateway replica uses PostgreSQL PREVIEW_AUTH_GRANT as the shared replay/revocation authority. Atomic row-version CAS consumes ISSUED ticket once, replaces its credential hash with the cookie hash, and binds exact host, owner, session and workspace generation; a replay or second replica loses the CAS and is denied.',
-    'The Preview Gateway validates expiry, audience, owner, project, workspace generation and grant status on every HTTP and WebSocket handshake, rotates/revokes all grants for the platform session, and strips platform Cookie/Authorization headers before proxying. Raw tickets/cookies are never persisted or logged.',
+    'The platform UI requests a one-time preview JWT through its opaque HttpOnly Secure session cookie backed by Redis. NestJS signs a short-lived JWT containing exact-host audience, user/session/project/workspace-generation binding and unique jti; the exact preview host exchanges it once for a separate short-lived HttpOnly, Secure, SameSite=Strict host-only preview cookie. Raw platform session cookies or JWTs are never domain-wide or forwarded to generated code.',
+    'Every Preview Gateway replica uses PostgreSQL PREVIEW_AUTH_GRANT as the shared replay/revocation authority. Atomic row-version CAS consumes the hashed JWT jti once, replaces its credential hash with the preview-cookie hash, and binds exact host, owner, session and workspace generation; a replay or second replica loses the CAS and is denied.',
+    'The Preview Gateway validates expiry, audience, owner, project, workspace generation and grant status on every HTTP and WebSocket handshake, rotates/revokes all grants for the platform session, and strips platform Cookie/Authorization headers before proxying. Raw JWTs/cookies are never persisted or logged.',
     'Resolve route key to the current workspace generation and owner in the control plane.',
     'Reject stopped, deleted, expired, wrong-owner, unknown-host and stale-generation requests.',
     'Route only fixed frontend and `/api/*` targets; never accept arbitrary upstream URL or forwarded authorization header from project code.',
@@ -936,9 +1097,9 @@ tech.para('8. Lifecycle and state ownership','Heading 1')
 tech.table(['State','Meaning','Allowed next behavior'], lifecycle, [1.2,3.6,2.2], 7.3)
 tech.para('State ownership rules','Heading 2')
 for item in [
-    'Django/PostgreSQL stores desired product state; K3s resources are observed runtime state.',
+    'NestJS/PostgreSQL stores desired product state; K3s resources are observed runtime state.',
     'The runtime controller alone reconciles approved desired state to allowlisted K3s resources.',
-    'The UI, scheduler and Django Admin issue named commands; they never forge runtime success.',
+    'The UI, scheduler and AdminJS issue named commands; they never forge runtime success.',
     'READY requires both workload health and authenticated route verification.',
     'Terminal attempts are immutable; retry creates a linked new attempt.',
     'Idle stop first records desired STOPPED, withdraws route and then scales Preview to zero.',
@@ -953,7 +1114,20 @@ for item in [
     'STOPPING→STOPPED and a new attempt with prior_attempt_id are rejected unless the prior attempt is terminal and the proof row has agent_run_id equal to that exact stopped/prior attempt. Missing, duplicate or another attempt’s valid proof fails closed. A staged retry may use only a separate immutable root; uncertain tool actions are never replayed.',
     'If write revocation cannot be proven, the platform fails closed, keeps the project mutation-blocked and requires bounded administrator reconciliation; lease expiry alone is insufficient evidence.',
 ]: tech.number(item)
-tech.page()
+
+tech.landscape()
+tech.para('Authoritative state diagrams','Heading 2')
+tech.callout('The repository state contract is shared with the PRD render and must equal the Data Specification Enum Catalogue and State Transitions sheets. Each diagram shows initial/terminal states, every legal directed edge, owner and the machine-level guard.', PALE_AMBER, '92400E')
+for index, (machine, path) in enumerate(STATE_DIAGRAM_PATHS, 1):
+    if index > 1:
+        tech.page()
+    tech.para(machine['field'],'Heading 2')
+    image = Image.open(path)
+    state_height_cap = 5.0 if index == 1 else 5.85
+    display_width = min(9.7, state_height_cap * image.width / image.height)
+    image.close()
+    tech.image(path, display_width, f"Figure TS-{index:02d} — {machine['field']}: {len(machine['states'])} states and {len(machine['transitions'])} legal directed transitions.")
+tech.portrait()
 
 tech.para('9. Workspace, Git, SQLite and checkpoint consistency','Heading 1')
 tech.table(['Asset','Authority','Stage 1 rule'],[
@@ -983,8 +1157,16 @@ for item in [
     'A restore_journal_recovery worker runs on controller startup and every 30 seconds. It SELECTs non-terminal RESTORE_JOB rows stale after 60 seconds FOR UPDATE SKIP LOCKED and CAS-claims (restore_job_id, journal_phase, row_version). PENDING rolls back staging/result, committed COMMIT reconciles target, and ROLLBACK restores verified prior pointers; the third failed attempt enters MANUAL_INTERVENTION. The acceptance fixture must reach verified READY or MANUAL_INTERVENTION within 5 minutes.',
     'For commands that use AUDIT_LOG.command_id dedup, the unique command claim, aggregate row_version compare-and-swap, accepted/rejected result and immutable audit append commit in the same PostgreSQL transaction; either all commit or all roll back. command_id never substitutes for aggregate CAS, and retries return the stored outcome without replay.',
 ]: tech.number(item)
-tech.page()
 
+tech.landscape()
+tech.para('Transactional sequence diagrams','Heading 2')
+tech.callout('These four diagrams are normative realizations of Save, Restore, preview authentication and capacity admission. Their guards, authority stores and failure outcomes bind the prose above.')
+for tx_no, (title, path, lanes, steps, guard) in enumerate(TRANSACTION_DIAGRAMS, 1):
+    if tx_no > 1:
+        tech.page()
+    tech.para(title, 'Heading 3')
+    tech.image(path, 9.5, f'Figure TX-{tx_no:02d} — {title}. {guard}')
+tech.portrait()
 tech.para('10. Security implementation','Heading 1')
 tech.table(['Area','Implementation contract','PRD trace'], security_detail, [1.3,4.7,1.0], 7.1)
 tech.para('Shared-kernel limitation','Heading 2')
@@ -1075,29 +1257,27 @@ tech.page()
 tech.para('17. Open technical decisions','Heading 1')
 tech.table(['ID','Decision required','Evidence / owner'],[
     ('TD-OPEN-04','NetworkPolicy provider and default-deny enforcement in selected K3s profile.','Negative network tests; Security + Infrastructure.'),
-    ('TD-OPEN-05','Implement and prove the fixed PostgreSQL PREVIEW_AUTH_GRANT one-time-ticket → host-only preview-cookie contract, including cross-replica atomic consume, expiry, audience, session revoke, WebSocket handshake and upstream stripping.','Route/auth/WebSocket/replay negative tests; Platform + Security. Data mechanism is fixed; this is implementation proof.'),
+    ('TD-OPEN-05','Implement and prove the fixed PostgreSQL PREVIEW_AUTH_GRANT one-time short-lived JWT → host-only preview-cookie contract, including asymmetric kid rotation, cross-replica jti CAS, expiry, exact audience, session revoke, WebSocket handshake and upstream stripping.','Route/auth/WebSocket/replay/rotation negative tests; Platform + Security. Data mechanism is fixed; this is implementation proof.'),
     ('TD-OPEN-06','Select queue worker library without changing the fixed CAPACITY_POOL row-lock, slot-sum, bounded-depth/timeout and OWNER_ROUND_ROBIN/FIFO contract.','Crash/retry/fairness/idempotency spike; Platform.'),
     ('TD-OPEN-09','Cline heartbeat warning/stuck threshold, cancellation grace and hard Job-termination timeout.','SPK-07 measurements; Platform + Product + Operations.'),
     ('TD-OPEN-10','Future team workspace, PROJECT_MEMBER roles, delegated administration and organization inheritance policy.','Separate Stage 2 product/security design; organization placement alone must never grant project access.'),
     ('TD-OPEN-11','Autosave interval/retention, Git version/SHA format, snapshot object-store implementation and long-term backup retention.','SPK-08 crash matrix plus Product/Data/Operations approval. Stage 1 explicit-Save RPO and 5-minute restore drill target are already fixed.'),
 ], [.9,3.45,2.65], 7.1)
-tech.page()
-
+tech.landscape()
 tech.para('18. Traceability matrix','Heading 1')
-tech.table(['Product requirement','Technical section','Verification'],[
-    ('UC-01 / F-01, F-14 / US-01, US-02, US-27 / AC-ID-01–03','Sections 2–4 and 10','Sign-in, organization placement and cross-owner project-list tests.'),
-    ('UC-02 / F-02, F-03 / US-03–04 / AC-PRJ-01–02','Sections 3–5 and 8','Idempotent project creation, initialization and owner-scoped open tests.'),
-    ('UC-03 / F-04, F-13 / US-05–08, US-24–26 / AC-CHAT-01–06, AC-UX-02','Sections 5, 8, 12, 13 and 15','Prompt guidance, streaming/reconnect and SPK-07 UID-bound recovery tests.'),
-    ('UC-04 / F-05–06 / US-09–11 / AC-CHG-01–03','Sections 5, 8, 12 and 13','Diff/preview, accept/reject/iterate and destructive-approval tests.'),
-    ('UC-05 / F-08–09, F-12 / US-12–14, US-20 / AC-PRV-01–03, AC-SEC-01','Sections 5–7 and 10','Authenticated owner-only HMR, Uvicorn reload and classifier tests.'),
-    ('UC-06 / F-07 / US-15–16, US-28 / AC-VER-01–04','Sections 9, 13 and 15','Version 1, autosave, idempotent Save and journaled history-preserving Restore tests.'),
-    ('UC-07 / F-10 / US-17–19 / AC-LFC-01–02, AC-CAP-01','Sections 4, 8 and 11','Stop/scale-to-zero/resume plus global admission and bounded queue tests.'),
-    ('UC-08 / F-11, F-13 / US-21, US-23, US-26 / AC-OPS-01, AC-UX-01, AC-CHAT-06','Sections 8–10, 12–13 and 15','Failure recovery, exact prior-attempt proof, audit and actionable status tests.'),
-    ('UC-09 / F-11 / US-21–22 / AC-OPS-01–02','Sections 2, 3, 10 and 12','Restricted admin, typed config and attributable allowlisted command tests.'),
-    ('SEC-01–07 / AC-SEC-01','Sections 6 and 10','Owner, shared preview-auth state, route, filesystem, Pod, network, resource and secret negative tests.'),
-], [2.1,2.0,2.9], 7.1)
-tech.para('Every UC-01–UC-09 is explicitly traceable above. Any product behavior not traceable to a PRD Feature/Story/Use Case/Acceptance ID is a proposal, not an approved requirement. Capability installation remains Stage 2/outside this Stage 1 contract.', after=5)
-tech.save(TECH_OUT, 'Vibe-Code, technical design, K3s, Traefik, Vite HMR, Uvicorn reload, preview runtime')
+tech.table(['Use Case','Stories / Acceptance','Business Rules','Technical realization','Verification'],[
+    ('UC-01','US-01, US-02, US-27 / AC-ID-01–03',', '.join(UC_BUSINESS_RULES['UC-01']),'NestJS identity guards, Prisma AUTH_USER/RBAC, Redis opaque session and current primary organization validation.','Sign-in, CSRF/session revoke, organization placement and cross-owner project-list tests.'),
+    ('UC-02','US-03–04 / AC-PRJ-01–02',', '.join(UC_BUSINESS_RULES['UC-02']),'Prisma command transaction initializes Project, Version 1 and workspace branch with command dedup + row CAS.','Idempotent project creation, initialization and owner-scoped open tests.'),
+    ('UC-03','US-05–08, US-24–26 / AC-CHAT-01–06, AC-UX-02',', '.join(UC_BUSINESS_RULES['UC-03']),'NestJS persists chat/run; adapter launches UID-bound Agent Job and resumes the same durable run after refresh.','Prompt guidance, streaming/reconnect and SPK-07 UID-bound recovery tests.'),
+    ('UC-04','US-09–11 / AC-CHG-01–03',', '.join(UC_BUSINESS_RULES['UC-04']),'Proposal/outcome rows and mutation lease enforce explicit decision and destructive-change approval.','Diff/preview, accept/reject/iterate and destructive-approval tests.'),
+    ('UC-05','US-12–14, US-20 / AC-PRV-01–03, AC-SEC-01',', '.join(UC_BUSINESS_RULES['UC-05']),'Short-lived audience-bound JWT exchange, PostgreSQL jti CAS, host-only preview cookie, gateway stripping and generation binding.','Owner-only HTTP/WSS, cross-replica replay, revoke, HMR/Uvicorn and classifier tests.'),
+    ('UC-06','US-15–16, US-28 / AC-VER-01–04',', '.join(UC_BUSINESS_RULES['UC-06']),'Snapshot service and restore journal stage, verify and atomically CAS whole-app generation pointers.','Version 1, autosave, idempotent Save and journaled history-preserving Restore tests.'),
+    ('UC-07','US-17–19 / AC-LFC-01–02, AC-CAP-01',', '.join(UC_BUSINESS_RULES['UC-07']),'State owners, controller reconciliation and durable CAPACITY_POOL/RESOURCE_LEASE row locks.','Stop/scale-to-zero/resume plus global admission and bounded queue tests.'),
+    ('UC-08','US-21, US-23, US-26 / AC-OPS-01, AC-UX-01, AC-CHAT-06',', '.join(UC_BUSINESS_RULES['UC-08']),'Evidence-backed observed state, typed error/audit rows and allowlisted recovery commands.','Failure recovery, exact prior-attempt proof, audit and actionable status tests.'),
+    ('UC-09','US-21–22 / AC-OPS-01–02',', '.join(UC_BUSINESS_RULES['UC-09']),'Restricted AdminJS calls NestJS command services with RBAC, CSRF, property/action allowlists, CAS and audit.','Denied direct mutation, typed config bounds, last-admin protection and attributable allowlisted command tests.'),
+], [1.0,2.2,1.2,2.9,2.4], 5.8)
+tech.para('Every UC-01–UC-09 and its Business Rules are explicitly traceable above. Any product behavior not traceable to a PRD Feature/Story/Use Case/Business Rule/Acceptance ID is a proposal, not an approved requirement. Capability installation remains Stage 2/outside this Stage 1 contract.', after=5)
+tech.save(TECH_OUT, 'Vibe-Code, technical design, NestJS, Prisma, AdminJS, Redis session, JWT, K3s, Traefik, Vite HMR, Uvicorn reload')
 
 print({
     'prd': str(PRD_OUT),
