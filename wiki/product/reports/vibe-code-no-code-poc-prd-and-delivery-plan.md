@@ -5,6 +5,708 @@
 - Source SHA-256: `ba43e71db849138589cbc503cbdc9615e4d1b25b430d4f5119f9a78c8e988b97`
 - Purpose: deterministic text companion for fast diff, search and AI review; Office remains the visual authority.
 
+## Canonical Use Case Flow Diagrams
+
+### UC-01 — Sign in and view projects
+
+- Actors: ACT-01
+- Module: M01 — Identity, organization placement and owned projects
+- Layer: Presentation + Application + Domain
+- Business Rules: BR-01, BR-02, BR-17
+- Security Guard: Secure session, CSRF, session rotation and object-level owner authorization.
+- Story Trace: US-01, US-02, US-27
+
+```mermaid
+flowchart TB
+  UC_01_PRE["Precondition: Active account with one current primary default organization membership."]
+  UC_01_S1["1. Sign in"]
+  UC_01_PRE --> UC_01_S1
+  UC_01_S2["2. validate organization placement"]
+  UC_01_S1 --> UC_01_S2
+  UC_01_S3["3. create secure session"]
+  UC_01_S2 --> UC_01_S3
+  UC_01_S4["4. show owner-scoped project list."]
+  UC_01_S3 --> UC_01_S4
+  UC_01_OK["Postcondition / evidence: Authenticated session; default Organization/OU/Department exists; no cross-owner project visibility."]
+  UC_01_FAIL["Failure / recovery: Invalid membership fails provisioning closed; same OU/Department never reveals another owner’s project."]
+  UC_01_S4 --> UC_01_OK
+  UC_01_S1 -. failure / recovery .-> UC_01_FAIL
+  UC_01_S2 -. failure / recovery .-> UC_01_FAIL
+  UC_01_S3 -. failure / recovery .-> UC_01_FAIL
+  UC_01_S4 -. failure / recovery .-> UC_01_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_01_FAIL failure
+```
+
+### UC-02 — Create and open project
+
+- Actors: ACT-01
+- Module: M02 — Project and immutable template registry
+- Layer: Presentation + Application + Domain + Runtime
+- Business Rules: BR-01, BR-03, BR-13, BR-17
+- Security Guard: Owner command, idempotency uniqueness, template allowlist and path-safe initialization.
+- Story Trace: US-03, US-04
+
+```mermaid
+flowchart TB
+  UC_02_PRE["Precondition: Authenticated owner; approved template available; idempotency key allocated."]
+  UC_02_S1["1. Enter project name and goal"]
+  UC_02_PRE --> UC_02_S1
+  UC_02_S2["2. create once"]
+  UC_02_S1 --> UC_02_S2
+  UC_02_S3["3. pin template"]
+  UC_02_S2 --> UC_02_S3
+  UC_02_S4["4. initialize Git/SQLite/workspace"]
+  UC_02_S3 --> UC_02_S4
+  UC_02_S5["5. open project."]
+  UC_02_S4 --> UC_02_S5
+  UC_02_OK["Postcondition / evidence: Project owns one template lock, generated repository, workspace and preview identity."]
+  UC_02_FAIL["Failure / recovery: Initialization remains recoverable and retry returns the same project rather than creating a duplicate."]
+  UC_02_S5 --> UC_02_OK
+  UC_02_S1 -. failure / recovery .-> UC_02_FAIL
+  UC_02_S2 -. failure / recovery .-> UC_02_FAIL
+  UC_02_S3 -. failure / recovery .-> UC_02_FAIL
+  UC_02_S4 -. failure / recovery .-> UC_02_FAIL
+  UC_02_S5 -. failure / recovery .-> UC_02_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_02_FAIL failure
+```
+
+### UC-03 — Use and recover Vibe Code chatbot
+
+- Actors: ACT-01
+- Module: M03 — Conversation, Agent adapter and Agent Job
+- Layer: Presentation + Application + Runtime
+- Business Rules: BR-01, BR-04, BR-05, BR-06, BR-13, BR-17
+- Security Guard: Owner/session checks, one mutation lease, admitted Job identity, heartbeat and UID-bound old-writer revocation.
+- Story Trace: US-05–US-08, US-24–US-26
+
+```mermaid
+flowchart TB
+  UC_03_PRE["Precondition: Owned project; durable chat session exists or may be created; mutation slot is available or queueable."]
+  UC_03_S1["1. Open prompt guidance"]
+  UC_03_PRE --> UC_03_S1
+  UC_03_S2["2. submit outcome"]
+  UC_03_S1 --> UC_03_S2
+  UC_03_S3["3. persist message"]
+  UC_03_S2 --> UC_03_S3
+  UC_03_S4["4. admit one run"]
+  UC_03_S3 --> UC_03_S4
+  UC_03_S5["5. stream progress"]
+  UC_03_S4 --> UC_03_S5
+  UC_03_S6["6. reconnect or recover"]
+  UC_03_S5 --> UC_03_S6
+  UC_03_S7["7. show result and usage."]
+  UC_03_S6 --> UC_03_S7
+  UC_03_OK["Postcondition / evidence: Ordered messages/events survive reconnect; linked attempts and runtime evidence remain immutable and attributable."]
+  UC_03_FAIL["Failure / recovery: Refresh reconnects without duplication. A stale heartbeat exposes recovery; uncertain old writers keep mutation blocked."]
+  UC_03_S7 --> UC_03_OK
+  UC_03_S1 -. failure / recovery .-> UC_03_FAIL
+  UC_03_S2 -. failure / recovery .-> UC_03_FAIL
+  UC_03_S3 -. failure / recovery .-> UC_03_FAIL
+  UC_03_S4 -. failure / recovery .-> UC_03_FAIL
+  UC_03_S5 -. failure / recovery .-> UC_03_FAIL
+  UC_03_S6 -. failure / recovery .-> UC_03_FAIL
+  UC_03_S7 -. failure / recovery .-> UC_03_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_03_FAIL failure
+```
+
+### UC-04 — Review and decide a change
+
+- Actors: ACT-01
+- Module: M04 — Change proposal, diff, approval and decision
+- Layer: Presentation + Application + Domain
+- Business Rules: BR-01, BR-04, BR-07, BR-09, BR-13, BR-17
+- Security Guard: Owner authorization, safe path/diff redaction, explicit destructive approval and decision idempotency.
+- Story Trace: US-09–US-11
+
+```mermaid
+flowchart TB
+  UC_04_PRE["Precondition: Agent produced a validated proposal tied to the owned project and run."]
+  UC_04_S1["1. Open safe diff and preview"]
+  UC_04_PRE --> UC_04_S1
+  UC_04_S2["2. inspect impact"]
+  UC_04_S1 --> UC_04_S2
+  UC_04_S3["3. accept, reject or iterate"]
+  UC_04_S2 --> UC_04_S3
+  UC_04_S4["4. persist one decision"]
+  UC_04_S3 --> UC_04_S4
+  UC_04_S5["5. checkpoint accepted result."]
+  UC_04_S4 --> UC_04_S5
+  UC_04_OK["Postcondition / evidence: Decision, audit evidence, run and accepted checkpoint are linked exactly once."]
+  UC_04_FAIL["Failure / recovery: Rejected or failed work never replaces the last healthy accepted version; approval denial is terminal evidence."]
+  UC_04_S5 --> UC_04_OK
+  UC_04_S1 -. failure / recovery .-> UC_04_FAIL
+  UC_04_S2 -. failure / recovery .-> UC_04_FAIL
+  UC_04_S3 -. failure / recovery .-> UC_04_FAIL
+  UC_04_S4 -. failure / recovery .-> UC_04_FAIL
+  UC_04_S5 -. failure / recovery .-> UC_04_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_04_FAIL failure
+```
+
+### UC-05 — Observe live preview update
+
+- Actors: ACT-01
+- Module: M05 — Preview Gateway, route and mutable Preview Pod
+- Layer: Presentation + Gateway + Runtime
+- Business Rules: BR-01, BR-08, BR-09, BR-13, BR-17
+- Security Guard: Active kid/signature, exact JWT claims, hashed-jti CAS consume, host-only cookie and fixed-target routing.
+- Story Trace: US-12–US-14, US-20
+
+```mermaid
+flowchart TB
+  UC_05_PRE["Precondition: Owned preview is admitted and healthy; proposed edit is eligible for the classified update path."]
+  UC_05_S1["1. Request owner preview"]
+  UC_05_PRE --> UC_05_S1
+  UC_05_S2["2. exchange the one-time exact-audience JWT"]
+  UC_05_S1 --> UC_05_S2
+  UC_05_S3["3. load preview"]
+  UC_05_S2 --> UC_05_S3
+  UC_05_S4["4. apply eligible source change"]
+  UC_05_S3 --> UC_05_S4
+  UC_05_S5["5. HMR/reload or bounded restart"]
+  UC_05_S4 --> UC_05_S5
+  UC_05_S6["6. confirm Ready for review."]
+  UC_05_S5 --> UC_05_S6
+  UC_05_OK["Postcondition / evidence: Frontend/backend update and WSS paths use the authenticated owner route with safe readiness evidence."]
+  UC_05_FAIL["Failure / recovery: Unsupported change is classified as restart, rebuild, approval required or unsupported; stale/replayed/cross-owner route is denied."]
+  UC_05_S6 --> UC_05_OK
+  UC_05_S1 -. failure / recovery .-> UC_05_FAIL
+  UC_05_S2 -. failure / recovery .-> UC_05_FAIL
+  UC_05_S3 -. failure / recovery .-> UC_05_FAIL
+  UC_05_S4 -. failure / recovery .-> UC_05_FAIL
+  UC_05_S5 -. failure / recovery .-> UC_05_FAIL
+  UC_05_S6 -. failure / recovery .-> UC_05_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_05_FAIL failure
+```
+
+### UC-06 — Save and restore a whole-app version
+
+- Actors: ACT-01
+- Module: M06 — Git workspace, snapshot and Restore transaction
+- Layer: Presentation + Application + Persistence + Runtime
+- Business Rules: BR-01, BR-04, BR-10, BR-11, BR-12, BR-13, BR-17
+- Security Guard: Owner-only idempotent command, project lease, path-safe Git, SQLite online backup, hashes, before-images and pointer CAS.
+- Story Trace: US-15, US-16, US-28
+
+```mermaid
+flowchart TB
+  UC_06_PRE["Precondition: Owned project; no conflicting mutation; target snapshot is AVAILABLE and same-project for Restore."]
+  UC_06_S1["1. Capture rotating autosave when changed"]
+  UC_06_PRE --> UC_06_S1
+  UC_06_S2["2. user selects Save"]
+  UC_06_S1 --> UC_06_S2
+  UC_06_S3["3. verify next numbered whole-app version"]
+  UC_06_S2 --> UC_06_S3
+  UC_06_S4["4. select earlier version"]
+  UC_06_S3 --> UC_06_S4
+  UC_06_S5["5. stage and verify Restore"]
+  UC_06_S4 --> UC_06_S5
+  UC_06_S6["6. atomically switch current pointers."]
+  UC_06_S5 --> UC_06_S6
+  UC_06_OK["Postcondition / evidence: Manifest binds Git, SQLite, migration/lock/template metadata and actor; successful Restore creates new history and healthy preview."]
+  UC_06_FAIL["Failure / recovery: No-change autosave is skipped. Any code, DB, lock, hash, health or cutover failure protects the previous current generation and enters verified rollback/manual intervention."]
+  UC_06_S6 --> UC_06_OK
+  UC_06_S1 -. failure / recovery .-> UC_06_FAIL
+  UC_06_S2 -. failure / recovery .-> UC_06_FAIL
+  UC_06_S3 -. failure / recovery .-> UC_06_FAIL
+  UC_06_S4 -. failure / recovery .-> UC_06_FAIL
+  UC_06_S5 -. failure / recovery .-> UC_06_FAIL
+  UC_06_S6 -. failure / recovery .-> UC_06_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_06_FAIL failure
+```
+
+### UC-07 — Stop, idle-stop and resume
+
+- Actors: ACT-01
+- Module: M07 — Workspace lifecycle and capacity admission
+- Layer: Presentation + Application + Runtime
+- Business Rules: BR-01, BR-04, BR-13, BR-14, BR-15, BR-17
+- Security Guard: Owner command, pool row lock, slot/reserve checks, durable fairness cursor, lease check and generation-safe route.
+- Story Trace: US-17–US-19
+
+```mermaid
+flowchart TB
+  UC_07_PRE["Precondition: Owned active, queued or stopped project; current mutation and capacity state are known."]
+  UC_07_S1["1. Warn on idle"]
+  UC_07_PRE --> UC_07_S1
+  UC_07_S2["2. verify no active mutation"]
+  UC_07_S1 --> UC_07_S2
+  UC_07_S3["3. withdraw route and stop"]
+  UC_07_S2 --> UC_07_S3
+  UC_07_S4["4. retain durable workspace"]
+  UC_07_S3 --> UC_07_S4
+  UC_07_S5["5. owner opens project"]
+  UC_07_S4 --> UC_07_S5
+  UC_07_S6["6. fair admission"]
+  UC_07_S5 --> UC_07_S6
+  UC_07_S7["7. readiness confirmed."]
+  UC_07_S6 --> UC_07_S7
+  UC_07_OK["Postcondition / evidence: Source, SQLite and checkpoints persist while disposable runtime is stopped or recreated."]
+  UC_07_FAIL["Failure / recovery: Active mutation blocks idle-stop; full queue shows bounded Waiting/cancel/timeout; failed start/stop remains recoverable."]
+  UC_07_S7 --> UC_07_OK
+  UC_07_S1 -. failure / recovery .-> UC_07_FAIL
+  UC_07_S2 -. failure / recovery .-> UC_07_FAIL
+  UC_07_S3 -. failure / recovery .-> UC_07_FAIL
+  UC_07_S4 -. failure / recovery .-> UC_07_FAIL
+  UC_07_S5 -. failure / recovery .-> UC_07_FAIL
+  UC_07_S6 -. failure / recovery .-> UC_07_FAIL
+  UC_07_S7 -. failure / recovery .-> UC_07_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_07_FAIL failure
+```
+
+### UC-08 — Recover a failed operation
+
+- Actors: ACT-01
+ACT-02
+- Module: M08 — Recovery controller, errors, evidence and audit
+- Layer: Presentation + Application + Runtime + Operations
+- Business Rules: BR-01, BR-04, BR-06, BR-12, BR-13, BR-16, BR-17
+- Security Guard: Owner or explicit admin permission, idempotency, prior-attempt UID proof, mutation serialization and redacted audit.
+- Story Trace: US-21, US-23, US-26
+
+```mermaid
+flowchart TB
+  UC_08_PRE["Precondition: Stable safe error/reference exists; actor owns the project or has explicit bounded administrator permission."]
+  UC_08_S1["1. Inspect safe status"]
+  UC_08_PRE --> UC_08_S1
+  UC_08_S2["2. choose retry, revert, recover agent or bounded reconcile"]
+  UC_08_S1 --> UC_08_S2
+  UC_08_S3["3. validate prior terminal state and proof"]
+  UC_08_S2 --> UC_08_S3
+  UC_08_S4["4. create linked attempt"]
+  UC_08_S3 --> UC_08_S4
+  UC_08_S5["5. verify healthy result."]
+  UC_08_S4 --> UC_08_S5
+  UC_08_OK["Postcondition / evidence: New linked attempt and correlation evidence exist; prior terminal history and last healthy version remain unchanged."]
+  UC_08_FAIL["Failure / recovery: No automatic replay of uncertain mutation. Missing or mismatched proof fails closed and keeps route withdrawn/mutation blocked."]
+  UC_08_S5 --> UC_08_OK
+  UC_08_S1 -. failure / recovery .-> UC_08_FAIL
+  UC_08_S2 -. failure / recovery .-> UC_08_FAIL
+  UC_08_S3 -. failure / recovery .-> UC_08_FAIL
+  UC_08_S4 -. failure / recovery .-> UC_08_FAIL
+  UC_08_S5 -. failure / recovery .-> UC_08_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_08_FAIL failure
+```
+
+### UC-09 — Perform restricted administration
+
+- Actors: ACT-02
+- Module: M09 — Restricted administration and typed configuration
+- Layer: Presentation + Application + Operations
+- Business Rules: BR-01, BR-13, BR-16, BR-17
+- Security Guard: Restricted AdminJS, explicit permission, last-admin protection, typed non-secret allowlist and atomic CAS plus command dedup.
+- Story Trace: US-21, US-22
+
+```mermaid
+flowchart TB
+  UC_09_PRE["Precondition: Active administrator session; explicit role/permission; expected aggregate row version loaded."]
+  UC_09_S1["1. Inspect safe state"]
+  UC_09_PRE --> UC_09_S1
+  UC_09_S2["2. choose named allowlisted command or config key"]
+  UC_09_S1 --> UC_09_S2
+  UC_09_S3["3. validate permission/type/range/version"]
+  UC_09_S2 --> UC_09_S3
+  UC_09_S4["4. commit CAS and audit"]
+  UC_09_S3 --> UC_09_S4
+  UC_09_S5["5. show safe result."]
+  UC_09_S4 --> UC_09_S5
+  UC_09_OK["Postcondition / evidence: Accepted and denied privileged actions are attributable, redacted and reviewable."]
+  UC_09_FAIL["Failure / recovery: Unknown command/key, secret value, wrong type/range, stale row or direct-state attempt is rejected atomically and audited."]
+  UC_09_S5 --> UC_09_OK
+  UC_09_S1 -. failure / recovery .-> UC_09_FAIL
+  UC_09_S2 -. failure / recovery .-> UC_09_FAIL
+  UC_09_S3 -. failure / recovery .-> UC_09_FAIL
+  UC_09_S4 -. failure / recovery .-> UC_09_FAIL
+  UC_09_S5 -. failure / recovery .-> UC_09_FAIL
+  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12
+  class UC_09_FAIL failure
+```
+
+## Canonical State Model Diagrams
+
+### PROJECT.lifecycle_status
+
+- Owner: NestJS control plane
+- Guard contract: Owner-authorized command; command-id dedup and aggregate row-version CAS commit atomically.
+
+```mermaid
+stateDiagram-v2
+  state "INITIALIZING" as SM01_S01
+  state "INITIALIZATION_FAILED" as SM01_S02
+  state "ACTIVE" as SM01_S03
+  state "DEGRADED" as SM01_S04
+  state "SOFT_DELETED" as SM01_S05
+  state "PURGING" as SM01_S06
+  state "PURGE_FAILED" as SM01_S07
+  state "DELETED" as SM01_S08
+  [*] --> SM01_S01
+  SM01_S01 --> SM01_S03 : AC-PRJ-01–02
+  SM01_S01 --> SM01_S02 : AC-PRJ-01–02
+  SM01_S01 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S02 --> SM01_S01 : AC-PRJ-01–02
+  SM01_S02 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S03 --> SM01_S04 : AC-PRJ-01–02
+  SM01_S03 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S04 --> SM01_S03 : AC-PRJ-01–02
+  SM01_S04 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S05 --> SM01_S03 : AC-PRJ-01–02
+  SM01_S05 --> SM01_S06 : AC-PRJ-01–02
+  SM01_S06 --> SM01_S08 : AC-PRJ-01–02
+  SM01_S06 --> SM01_S07 : AC-PRJ-01–02
+  SM01_S07 --> SM01_S06 : AC-PRJ-01–02
+  SM01_S08 --> [*]
+```
+
+### WORKSPACE.desired_status
+
+- Owner: NestJS command/policy
+- Guard contract: Owner-authorized intent; mutation serialization and aggregate row-version CAS.
+
+```mermaid
+stateDiagram-v2
+  state "RUNNING" as SM02_S01
+  state "STOPPED" as SM02_S02
+  state "DELETED" as SM02_S03
+  [*] --> SM02_S02
+  SM02_S01 --> SM02_S02 : AC-LFC-01 / AC-LFC-02
+  SM02_S01 --> SM02_S03 : AC-LFC-01 / AC-LFC-02
+  SM02_S02 --> SM02_S01 : AC-LFC-01 / AC-LFC-02
+  SM02_S02 --> SM02_S03 : AC-LFC-01 / AC-LFC-02
+  SM02_S03 --> [*]
+```
+
+### WORKSPACE.observed_status
+
+- Owner: Runtime Controller
+- Guard contract: Runtime Controller observation; readiness, UID and generation evidence must match desired state.
+
+```mermaid
+stateDiagram-v2
+  state "ABSENT" as SM03_S01
+  state "QUEUED" as SM03_S02
+  state "STARTING" as SM03_S03
+  state "READY" as SM03_S04
+  state "BUSY" as SM03_S05
+  state "IDLE_WARNING" as SM03_S06
+  state "DEGRADED" as SM03_S07
+  state "ERROR" as SM03_S08
+  state "STOPPING" as SM03_S09
+  state "STOPPED" as SM03_S10
+  state "DELETING" as SM03_S11
+  state "DELETED" as SM03_S12
+  [*] --> SM03_S01
+  SM03_S01 --> SM03_S02 : AC-PRV-01 / AC-CAP-01
+  SM03_S01 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S01 --> SM03_S12 : AC-PRV-01 / AC-CAP-01
+  SM03_S02 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S02 --> SM03_S10 : AC-PRV-01 / AC-CAP-01
+  SM03_S02 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S07 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S05 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S06 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S07 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S07 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S05 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S07 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S07 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S07 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S02 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S11 : AC-PRV-01 / AC-CAP-01
+  SM03_S09 --> SM03_S10 : AC-PRV-01 / AC-CAP-01
+  SM03_S09 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S10 --> SM03_S02 : AC-PRV-01 / AC-CAP-01
+  SM03_S10 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S10 --> SM03_S11 : AC-PRV-01 / AC-CAP-01
+  SM03_S11 --> SM03_S12 : AC-PRV-01 / AC-CAP-01
+  SM03_S11 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S12 --> [*]
+```
+
+### AGENT_RUN.execution_status
+
+- Owner: Agent orchestrator
+- Guard contract: One project mutation lease; admitted Job identity, heartbeat and stop/fencing evidence.
+
+```mermaid
+stateDiagram-v2
+  state "REQUESTED" as SM04_S01
+  state "QUEUED" as SM04_S02
+  state "PLANNING" as SM04_S03
+  state "BUILDING" as SM04_S04
+  state "CHECKING" as SM04_S05
+  state "WAITING_APPROVAL" as SM04_S06
+  state "APPLYING" as SM04_S07
+  state "PREPARING_PREVIEW" as SM04_S08
+  state "STOPPING" as SM04_S09
+  state "COMPLETED" as SM04_S10
+  state "STOPPED" as SM04_S11
+  state "FAILED" as SM04_S12
+  state "TIMED_OUT" as SM04_S13
+  [*] --> SM04_S01
+  SM04_S01 --> SM04_S02 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S01 --> SM04_S03 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S01 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S01 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S03 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S04 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S06 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S05 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S06 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S06 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S07 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S08 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S07 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S10 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S05 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S08 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S10 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S09 --> SM04_S11 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S09 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S10 --> [*]
+  SM04_S11 --> [*]
+  SM04_S12 --> [*]
+  SM04_S13 --> [*]
+```
+
+### AGENT_RUN.outcome_status
+
+- Owner: Validation/approval service
+- Guard contract: Validated proposal plus explicit accept/reject/abort decision; terminal attempts are immutable.
+
+```mermaid
+stateDiagram-v2
+  state "DRAFT" as SM05_S01
+  state "VALIDATED" as SM05_S02
+  state "ACCEPTED" as SM05_S03
+  state "REJECTED" as SM05_S04
+  state "ABORTED" as SM05_S05
+  state "FAILED" as SM05_S06
+  [*] --> SM05_S01
+  SM05_S01 --> SM05_S02 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S01 --> SM05_S05 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S01 --> SM05_S06 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S03 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S04 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S05 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S06 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S03 --> [*]
+  SM05_S04 --> [*]
+  SM05_S05 --> [*]
+  SM05_S06 --> [*]
+```
+
+### PREVIEW_AUTH_GRANT.grant_status
+
+- Owner: Preview Gateway
+- Guard contract: Verify active kid/signature and exact JWT audience/owner/session/project/generation/expiry; CAS-consume hashed jti once, then bind the host-only preview cookie.
+
+```mermaid
+stateDiagram-v2
+  state "ISSUED" as SM06_S01
+  state "CONSUMING" as SM06_S02
+  state "ACTIVE" as SM06_S03
+  state "ROTATING" as SM06_S04
+  state "EXPIRED" as SM06_S05
+  state "REVOKED" as SM06_S06
+  state "FAILED" as SM06_S07
+  [*] --> SM06_S01
+  SM06_S01 --> SM06_S02 : SEC-03 / AC-PRV-01
+  SM06_S01 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S01 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S03 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S07 : SEC-03 / AC-PRV-01
+  SM06_S03 --> SM06_S04 : SEC-03 / AC-PRV-01
+  SM06_S03 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S03 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S04 --> SM06_S03 : SEC-03 / AC-PRV-01
+  SM06_S04 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S04 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S05 --> [*]
+  SM06_S06 --> [*]
+  SM06_S07 --> [*]
+```
+
+### SNAPSHOT.snapshot_status
+
+- Owner: Snapshot service
+- Guard contract: Git, SQLite online backup, migration/lock manifests and hashes verify as one whole-app snapshot.
+
+```mermaid
+stateDiagram-v2
+  state "REQUESTED" as SM07_S01
+  state "CAPTURING" as SM07_S02
+  state "VALIDATING" as SM07_S03
+  state "AVAILABLE" as SM07_S04
+  state "INVALID" as SM07_S05
+  state "FAILED" as SM07_S06
+  state "DELETED" as SM07_S07
+  [*] --> SM07_S01
+  SM07_S01 --> SM07_S02 : AC-VER-01–03
+  SM07_S01 --> SM07_S06 : AC-VER-01–03
+  SM07_S02 --> SM07_S03 : AC-VER-01–03
+  SM07_S02 --> SM07_S06 : AC-VER-01–03
+  SM07_S03 --> SM07_S04 : AC-VER-01–03
+  SM07_S03 --> SM07_S05 : AC-VER-01–03
+  SM07_S03 --> SM07_S06 : AC-VER-01–03
+  SM07_S04 --> SM07_S05 : AC-VER-01–03
+  SM07_S04 --> SM07_S07 : AC-VER-01–03
+  SM07_S05 --> SM07_S07 : AC-VER-01–03
+  SM07_S06 --> SM07_S07 : AC-VER-01–03
+  SM07_S07 --> [*]
+```
+
+### RESTORE_JOB.restore_status
+
+- Owner: Restore service
+- Guard contract: Owner-only idempotent command; project lease, staged generation, before-images and journaled pointer CAS.
+
+```mermaid
+stateDiagram-v2
+  state "REQUESTED" as SM08_S01
+  state "VALIDATING_SOURCE" as SM08_S02
+  state "ACQUIRING_LOCK" as SM08_S03
+  state "RESTORING_CODE" as SM08_S04
+  state "RESTORING_DB" as SM08_S05
+  state "VERIFYING" as SM08_S06
+  state "CUTTING_OVER" as SM08_S07
+  state "ROLLING_BACK" as SM08_S08
+  state "SUCCEEDED" as SM08_S09
+  state "ROLLED_BACK" as SM08_S10
+  state "FAILED" as SM08_S11
+  state "TIMED_OUT" as SM08_S12
+  [*] --> SM08_S01
+  SM08_S01 --> SM08_S02 : AC-VER-04
+  SM08_S01 --> SM08_S11 : AC-VER-04
+  SM08_S02 --> SM08_S03 : AC-VER-04
+  SM08_S02 --> SM08_S11 : AC-VER-04
+  SM08_S02 --> SM08_S12 : AC-VER-04
+  SM08_S03 --> SM08_S04 : AC-VER-04
+  SM08_S03 --> SM08_S11 : AC-VER-04
+  SM08_S03 --> SM08_S12 : AC-VER-04
+  SM08_S04 --> SM08_S05 : AC-VER-04
+  SM08_S04 --> SM08_S08 : AC-VER-04
+  SM08_S05 --> SM08_S06 : AC-VER-04
+  SM08_S05 --> SM08_S08 : AC-VER-04
+  SM08_S06 --> SM08_S07 : AC-VER-04
+  SM08_S06 --> SM08_S08 : AC-VER-04
+  SM08_S07 --> SM08_S09 : AC-VER-04
+  SM08_S07 --> SM08_S08 : AC-VER-04
+  SM08_S08 --> SM08_S10 : AC-VER-04
+  SM08_S08 --> SM08_S11 : AC-VER-04
+  SM08_S09 --> [*]
+  SM08_S10 --> [*]
+  SM08_S11 --> [*]
+  SM08_S12 --> [*]
+```
+
+### PREVIEW_ROUTE.route_status
+
+- Owner: Preview Gateway
+- Guard contract: Owner/session/generation authorization plus workload and route readiness; stale routes fail closed.
+
+```mermaid
+stateDiagram-v2
+  state "DISABLED" as SM09_S01
+  state "STARTING" as SM09_S02
+  state "NOT_READY" as SM09_S03
+  state "READY" as SM09_S04
+  state "DEGRADED" as SM09_S05
+  state "ERROR" as SM09_S06
+  state "REVOKING" as SM09_S07
+  state "REVOKED" as SM09_S08
+  [*] --> SM09_S01
+  SM09_S01 --> SM09_S02 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S01 --> SM09_S08 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S03 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S04 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S05 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S04 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S05 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S04 --> SM09_S05 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S04 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S04 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S05 --> SM09_S04 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S05 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S05 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S06 --> SM09_S02 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S06 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S07 --> SM09_S08 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S07 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S08 --> [*]
+```
+
+### JOB_RUN.run_status
+
+- Owner: Platform scheduler
+- Guard contract: Unique scheduled attempt; overlap guard, timeout and linked retry preserve immutable terminal history.
+
+```mermaid
+stateDiagram-v2
+  state "QUEUED" as SM10_S01
+  state "RUNNING" as SM10_S02
+  state "SUCCEEDED" as SM10_S03
+  state "FAILED" as SM10_S04
+  state "TIMED_OUT" as SM10_S05
+  state "CANCELLED" as SM10_S06
+  [*] --> SM10_S01
+  SM10_S01 --> SM10_S02 : AC-OPS-01
+  SM10_S01 --> SM10_S06 : AC-OPS-01
+  SM10_S02 --> SM10_S03 : AC-OPS-01
+  SM10_S02 --> SM10_S04 : AC-OPS-01
+  SM10_S02 --> SM10_S05 : AC-OPS-01
+  SM10_S02 --> SM10_S06 : AC-OPS-01
+  SM10_S03 --> [*]
+  SM10_S04 --> [*]
+  SM10_S05 --> [*]
+  SM10_S06 --> [*]
+```
+
 PRODUCT REQUIREMENTS DOCUMENT
 
 Vibe-Code Platform No-Code POC PRD & Delivery Plan

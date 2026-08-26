@@ -2,7 +2,10 @@
 """Export deterministic, text-first Markdown companions for the three Office reports."""
 from __future__ import annotations
 
+import ast
 import hashlib
+import html
+import json
 import os
 from pathlib import Path
 
@@ -17,6 +20,8 @@ REPORTS = ROOT / "wiki/product/reports"
 PRD = "vibe-code-no-code-poc-prd-and-delivery-plan"
 TECH = "vibe-code-poc-technical-design-and-runtime-architecture"
 DATA = "vibe-code-poc-data-specification-and-schema"
+STATE_CONTRACT = Path(__file__).with_name("state_contract.json")
+DOC_GENERATOR = Path(__file__).with_name("generate_vibe_docs.py")
 
 
 def sha256(path: Path) -> str:
@@ -40,6 +45,80 @@ def front(title: str, source: Path) -> list[str]:
     ]
 
 
+def mermaid_label(value: object) -> str:
+    text = " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
+    return html.escape(text, quote=True).replace("`", "&#96;")
+
+
+def load_use_cases() -> list[tuple[str, ...]]:
+    tree = ast.parse(DOC_GENERATOR.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "use_cases" for target in node.targets):
+            value = ast.literal_eval(node.value)
+            assert len(value) == 9 and [row[0] for row in value] == [f"UC-{index:02d}" for index in range(1, 10)]
+            return value
+    raise AssertionError("canonical use_cases assignment not found")
+
+
+def use_case_mermaid_sections() -> list[str]:
+    lines = ["## Canonical Use Case Flow Diagrams", ""]
+    for use_case in load_use_cases():
+        uid, title, actors, module, layer, precondition, flow, rules, security, failure, evidence, stories = use_case
+        steps = [step.strip() for step in flow.replace("\n", " ").split("→") if step.strip()]
+        prefix = uid.replace("-", "_")
+        lines.extend([
+            f"### {uid} — {title}", "",
+            f"- Actors: {actors}", f"- Module: {module}", f"- Layer: {layer}",
+            f"- Business Rules: {rules}", f"- Security Guard: {security}", f"- Story Trace: {stories}", "",
+            "```mermaid", "flowchart TB",
+            f'  {prefix}_PRE["Precondition: {mermaid_label(precondition)}"]',
+        ])
+        previous = f"{prefix}_PRE"
+        for index, step in enumerate(steps, 1):
+            node = f"{prefix}_S{index}"
+            lines.extend([f'  {node}["{index}. {mermaid_label(step)}"]', f"  {previous} --> {node}"])
+            previous = node
+        lines.extend([
+            f'  {prefix}_OK["Postcondition / evidence: {mermaid_label(evidence)}"]',
+            f'  {prefix}_FAIL["Failure / recovery: {mermaid_label(failure)}"]',
+            f"  {previous} --> {prefix}_OK",
+        ])
+        for index in range(1, len(steps) + 1):
+            lines.append(f"  {prefix}_S{index} -. failure / recovery .-> {prefix}_FAIL")
+        lines.extend([f"  classDef failure fill:#fff7ed,stroke:#c2410c,color:#7c2d12", f"  class {prefix}_FAIL failure", "```", ""])
+    return lines
+
+
+def state_mermaid_sections() -> list[str]:
+    contract = json.loads(STATE_CONTRACT.read_text(encoding="utf-8"))
+    machines = contract["machines"]
+    assert len(machines) == 10
+    lines = ["## Canonical State Model Diagrams", ""]
+    for machine_index, machine in enumerate(machines, 1):
+        prefix = f"SM{machine_index:02d}"
+        aliases = {state["name"]: f"{prefix}_S{index:02d}" for index, state in enumerate(machine["states"], 1)}
+        lines.extend([
+            f"### {machine['field']}", "",
+            f"- Owner: {machine['owner']}",
+            f"- Guard contract: {machine['guard_summary']}", "",
+            "```mermaid", "stateDiagram-v2",
+        ])
+        for state in machine["states"]:
+            lines.append(f'  state "{mermaid_label(state["name"])}" as {aliases[state["name"]]}')
+        for state in machine["states"]:
+            if state.get("initial", state["name"] == machine.get("initial")):
+                lines.append(f"  [*] --> {aliases[state['name']]}")
+        for edge in machine["transitions"]:
+            label = mermaid_label(edge.get("ac", ""))
+            suffix = f" : {label}" if label else ""
+            lines.append(f"  {aliases[edge['from']]} --> {aliases[edge['to']]}{suffix}")
+        for state in machine["states"]:
+            if state.get("terminal", state["name"] in machine.get("terminal", [])):
+                lines.append(f"  {aliases[state['name']]} --> [*]")
+        lines.extend(["```", ""])
+    return lines
+
+
 def docx_blocks(document: Document):
     for child in document.element.body.iterchildren():
         if child.tag.endswith("}p"):
@@ -48,9 +127,9 @@ def docx_blocks(document: Document):
             yield Table(child, document)
 
 
-def export_docx(source: Path, target: Path, title: str) -> None:
+def export_docx(source: Path, target: Path, title: str, diagrams: list[str]) -> None:
     document = Document(str(source))
-    lines = front(title, source)
+    lines = front(title, source) + diagrams
     table_no = 0
     for block in docx_blocks(document):
         if isinstance(block, Paragraph):
@@ -87,7 +166,7 @@ def export_docx(source: Path, target: Path, title: str) -> None:
 
 def export_xlsx(source: Path, target: Path, title: str) -> None:
     workbook = load_workbook(source, data_only=False, read_only=True)
-    lines = front(title, source)
+    lines = front(title, source) + state_mermaid_sections()
     for sheet in workbook.worksheets:
         lines.extend([f"## Sheet: {sheet.title}", "", "| Row | Non-empty cells |", "| ---: | --- |"])
         for row_no, row in enumerate(sheet.iter_rows(values_only=True), start=1):
@@ -100,8 +179,9 @@ def export_xlsx(source: Path, target: Path, title: str) -> None:
 
 
 def main() -> None:
-    export_docx(REPORTS / f"{PRD}.docx", REPORTS / f"{PRD}.md", "Vibe-Code No-Code POC — PRD and Delivery Plan")
-    export_docx(REPORTS / f"{TECH}.docx", REPORTS / f"{TECH}.md", "Vibe-Code POC — Technical Design and Runtime Architecture")
+    state_diagrams = state_mermaid_sections()
+    export_docx(REPORTS / f"{PRD}.docx", REPORTS / f"{PRD}.md", "Vibe-Code No-Code POC — PRD and Delivery Plan", use_case_mermaid_sections() + state_diagrams)
+    export_docx(REPORTS / f"{TECH}.docx", REPORTS / f"{TECH}.md", "Vibe-Code POC — Technical Design and Runtime Architecture", state_diagrams)
     export_xlsx(REPORTS / f"{DATA}.xlsx", REPORTS / f"{DATA}.md", "Vibe-Code POC — Data Specification and Schema")
     print({"markdown_companions": [f"{PRD}.md", f"{TECH}.md", f"{DATA}.md"]})
 

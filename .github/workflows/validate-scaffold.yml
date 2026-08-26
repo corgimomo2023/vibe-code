@@ -38,18 +38,16 @@ jobs:
         run: uv run --frozen --extra test python scripts/validate_scaffold.py
       - name: Verify committed Office report packages
         run: uv run --frozen --extra test python scripts/report_generation/verify_vibe_reports.py
-      - name: Rebuild and verify Office reports in an isolated output root
+      - name: Verify frozen Office and rebuild Markdown companions in an isolated root
         run: |
           report_root="$(mktemp -d)"
           mkdir -p "$report_root/wiki/product/reports"
+          cp wiki/product/reports/vibe-code-no-code-poc-prd-and-delivery-plan.docx "$report_root/wiki/product/reports/"
+          cp wiki/product/reports/vibe-code-poc-technical-design-and-runtime-architecture.docx "$report_root/wiki/product/reports/"
+          cp wiki/product/reports/vibe-code-poc-data-specification-and-schema.xlsx "$report_root/wiki/product/reports/"
+          cp wiki/product/reports/vibe-code-report-artifact-manifest.json "$report_root/wiki/product/reports/"
+          cp wiki/product/reports/vibe-code-office-freeze.json "$report_root/wiki/product/reports/"
           export VIBE_CODE_ROOT="$report_root"
-          export VIBE_REPORT_ER_DIR="$report_root/build/er"
-          export VIBE_REPORT_DIAGRAM_DIR="$report_root/build/diagrams"
-          uv run --frozen --extra reports python scripts/report_generation/generate_vibe_er.py
-          uv run --frozen --extra reports python scripts/report_generation/generate_vibe_docs.py
-          uv run --frozen --extra reports python scripts/report_generation/generate_vibe_data_spec.py
-          uv run --frozen --extra reports python scripts/report_generation/recalc_xlsx.py
-          uv run --frozen --extra reports python scripts/report_generation/write_vibe_report_manifest.py
           uv run --frozen --extra reports python scripts/report_generation/export_vibe_reports_to_markdown.py
           uv run --frozen --extra test python scripts/report_generation/verify_vibe_reports.py
           uv run --frozen --extra test pytest -o addopts='' -q tests/test_report_completeness.py tests/test_report_markdown_companions.py

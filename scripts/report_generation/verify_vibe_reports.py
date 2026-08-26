@@ -19,6 +19,7 @@ PRD = ROOT / 'vibe-code-no-code-poc-prd-and-delivery-plan.docx'
 TECH = ROOT / 'vibe-code-poc-technical-design-and-runtime-architecture.docx'
 XLSX = ROOT / 'vibe-code-poc-data-specification-and-schema.xlsx'
 MANIFEST = ROOT / 'vibe-code-report-artifact-manifest.json'
+OFFICE_FREEZE = ROOT / 'vibe-code-office-freeze.json'
 
 
 def sha(path: Path) -> str:
@@ -160,6 +161,12 @@ assert manifest.get('schema') == 'vibe-code-report-artifact-manifest/v1'
 assert set(manifest.get('artifacts', {})) == expected_artifacts
 for artifact in (PRD, TECH, XLSX):
     assert manifest['artifacts'][artifact.name] == sha(artifact), f'binary manifest drift: {artifact.name}'
+office_freeze = json.loads(OFFICE_FREEZE.read_text())
+assert office_freeze.get('schema_version') == 1
+assert office_freeze.get('frozen_at_commit') == '9803da807aa04451d7311ddb257233b203cc45ac'
+assert set(office_freeze.get('artifacts', {})) == expected_artifacts
+for artifact in (PRD, TECH, XLSX):
+    assert office_freeze['artifacts'][artifact.name] == sha(artifact), f'frozen Office artifact changed: {artifact.name}'
 
 prd, pt = doc_text(PRD)
 tech, tt = doc_text(TECH)

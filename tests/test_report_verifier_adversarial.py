@@ -32,6 +32,10 @@ def frozen_candidate(tmp_path: Path) -> Path:
         PROJECT_ROOT / "wiki/product/reports/vibe-code-report-artifact-manifest.json",
         reports / "vibe-code-report-artifact-manifest.json",
     )
+    shutil.copy2(
+        PROJECT_ROOT / "wiki/product/reports/vibe-code-office-freeze.json",
+        reports / "vibe-code-office-freeze.json",
+    )
     return root
 
 
@@ -48,6 +52,10 @@ def rewrite_manifest(root: Path) -> None:
     (reports / "vibe-code-report-artifact-manifest.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n"
     )
+    freeze_path = reports / "vibe-code-office-freeze.json"
+    freeze = json.loads(freeze_path.read_text())
+    freeze["artifacts"] = payload["artifacts"]
+    freeze_path.write_text(json.dumps(freeze, indent=2, sort_keys=True) + "\n")
 
 
 def run_verifier(root: Path) -> subprocess.CompletedProcess[str]:

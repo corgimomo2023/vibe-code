@@ -5,6 +5,384 @@
 - Source SHA-256: `6a507dcd5e93006db8fceeb5cf1f9d2846dedeab0d966f8c3798f35ad89da461`
 - Purpose: deterministic text companion for fast diff, search and AI review; Office remains the visual authority.
 
+## Canonical State Model Diagrams
+
+### PROJECT.lifecycle_status
+
+- Owner: NestJS control plane
+- Guard contract: Owner-authorized command; command-id dedup and aggregate row-version CAS commit atomically.
+
+```mermaid
+stateDiagram-v2
+  state "INITIALIZING" as SM01_S01
+  state "INITIALIZATION_FAILED" as SM01_S02
+  state "ACTIVE" as SM01_S03
+  state "DEGRADED" as SM01_S04
+  state "SOFT_DELETED" as SM01_S05
+  state "PURGING" as SM01_S06
+  state "PURGE_FAILED" as SM01_S07
+  state "DELETED" as SM01_S08
+  [*] --> SM01_S01
+  SM01_S01 --> SM01_S03 : AC-PRJ-01–02
+  SM01_S01 --> SM01_S02 : AC-PRJ-01–02
+  SM01_S01 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S02 --> SM01_S01 : AC-PRJ-01–02
+  SM01_S02 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S03 --> SM01_S04 : AC-PRJ-01–02
+  SM01_S03 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S04 --> SM01_S03 : AC-PRJ-01–02
+  SM01_S04 --> SM01_S05 : AC-PRJ-01–02
+  SM01_S05 --> SM01_S03 : AC-PRJ-01–02
+  SM01_S05 --> SM01_S06 : AC-PRJ-01–02
+  SM01_S06 --> SM01_S08 : AC-PRJ-01–02
+  SM01_S06 --> SM01_S07 : AC-PRJ-01–02
+  SM01_S07 --> SM01_S06 : AC-PRJ-01–02
+  SM01_S08 --> [*]
+```
+
+### WORKSPACE.desired_status
+
+- Owner: NestJS command/policy
+- Guard contract: Owner-authorized intent; mutation serialization and aggregate row-version CAS.
+
+```mermaid
+stateDiagram-v2
+  state "RUNNING" as SM02_S01
+  state "STOPPED" as SM02_S02
+  state "DELETED" as SM02_S03
+  [*] --> SM02_S02
+  SM02_S01 --> SM02_S02 : AC-LFC-01 / AC-LFC-02
+  SM02_S01 --> SM02_S03 : AC-LFC-01 / AC-LFC-02
+  SM02_S02 --> SM02_S01 : AC-LFC-01 / AC-LFC-02
+  SM02_S02 --> SM02_S03 : AC-LFC-01 / AC-LFC-02
+  SM02_S03 --> [*]
+```
+
+### WORKSPACE.observed_status
+
+- Owner: Runtime Controller
+- Guard contract: Runtime Controller observation; readiness, UID and generation evidence must match desired state.
+
+```mermaid
+stateDiagram-v2
+  state "ABSENT" as SM03_S01
+  state "QUEUED" as SM03_S02
+  state "STARTING" as SM03_S03
+  state "READY" as SM03_S04
+  state "BUSY" as SM03_S05
+  state "IDLE_WARNING" as SM03_S06
+  state "DEGRADED" as SM03_S07
+  state "ERROR" as SM03_S08
+  state "STOPPING" as SM03_S09
+  state "STOPPED" as SM03_S10
+  state "DELETING" as SM03_S11
+  state "DELETED" as SM03_S12
+  [*] --> SM03_S01
+  SM03_S01 --> SM03_S02 : AC-PRV-01 / AC-CAP-01
+  SM03_S01 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S01 --> SM03_S12 : AC-PRV-01 / AC-CAP-01
+  SM03_S02 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S02 --> SM03_S10 : AC-PRV-01 / AC-CAP-01
+  SM03_S02 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S07 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S03 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S05 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S06 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S07 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S04 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S07 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S05 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S05 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S06 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S07 --> SM03_S04 : AC-PRV-01 / AC-CAP-01
+  SM03_S07 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S07 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S02 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S09 : AC-PRV-01 / AC-CAP-01
+  SM03_S08 --> SM03_S11 : AC-PRV-01 / AC-CAP-01
+  SM03_S09 --> SM03_S10 : AC-PRV-01 / AC-CAP-01
+  SM03_S09 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S10 --> SM03_S02 : AC-PRV-01 / AC-CAP-01
+  SM03_S10 --> SM03_S03 : AC-PRV-01 / AC-CAP-01
+  SM03_S10 --> SM03_S11 : AC-PRV-01 / AC-CAP-01
+  SM03_S11 --> SM03_S12 : AC-PRV-01 / AC-CAP-01
+  SM03_S11 --> SM03_S08 : AC-PRV-01 / AC-CAP-01
+  SM03_S12 --> [*]
+```
+
+### AGENT_RUN.execution_status
+
+- Owner: Agent orchestrator
+- Guard contract: One project mutation lease; admitted Job identity, heartbeat and stop/fencing evidence.
+
+```mermaid
+stateDiagram-v2
+  state "REQUESTED" as SM04_S01
+  state "QUEUED" as SM04_S02
+  state "PLANNING" as SM04_S03
+  state "BUILDING" as SM04_S04
+  state "CHECKING" as SM04_S05
+  state "WAITING_APPROVAL" as SM04_S06
+  state "APPLYING" as SM04_S07
+  state "PREPARING_PREVIEW" as SM04_S08
+  state "STOPPING" as SM04_S09
+  state "COMPLETED" as SM04_S10
+  state "STOPPED" as SM04_S11
+  state "FAILED" as SM04_S12
+  state "TIMED_OUT" as SM04_S13
+  [*] --> SM04_S01
+  SM04_S01 --> SM04_S02 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S01 --> SM04_S03 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S01 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S01 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S03 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S02 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S04 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S06 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S03 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S05 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S06 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S04 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S06 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S07 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S08 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S05 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S07 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S10 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S06 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S05 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S08 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S07 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S10 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S09 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S08 --> SM04_S13 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S09 --> SM04_S11 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S09 --> SM04_S12 : AC-CHAT-01–06 / AC-CHG-01–03
+  SM04_S10 --> [*]
+  SM04_S11 --> [*]
+  SM04_S12 --> [*]
+  SM04_S13 --> [*]
+```
+
+### AGENT_RUN.outcome_status
+
+- Owner: Validation/approval service
+- Guard contract: Validated proposal plus explicit accept/reject/abort decision; terminal attempts are immutable.
+
+```mermaid
+stateDiagram-v2
+  state "DRAFT" as SM05_S01
+  state "VALIDATED" as SM05_S02
+  state "ACCEPTED" as SM05_S03
+  state "REJECTED" as SM05_S04
+  state "ABORTED" as SM05_S05
+  state "FAILED" as SM05_S06
+  [*] --> SM05_S01
+  SM05_S01 --> SM05_S02 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S01 --> SM05_S05 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S01 --> SM05_S06 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S03 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S04 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S05 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S02 --> SM05_S06 : AC-CHAT-03–04 / AC-CHG-02–03
+  SM05_S03 --> [*]
+  SM05_S04 --> [*]
+  SM05_S05 --> [*]
+  SM05_S06 --> [*]
+```
+
+### PREVIEW_AUTH_GRANT.grant_status
+
+- Owner: Preview Gateway
+- Guard contract: Verify active kid/signature and exact JWT audience/owner/session/project/generation/expiry; CAS-consume hashed jti once, then bind the host-only preview cookie.
+
+```mermaid
+stateDiagram-v2
+  state "ISSUED" as SM06_S01
+  state "CONSUMING" as SM06_S02
+  state "ACTIVE" as SM06_S03
+  state "ROTATING" as SM06_S04
+  state "EXPIRED" as SM06_S05
+  state "REVOKED" as SM06_S06
+  state "FAILED" as SM06_S07
+  [*] --> SM06_S01
+  SM06_S01 --> SM06_S02 : SEC-03 / AC-PRV-01
+  SM06_S01 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S01 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S03 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S02 --> SM06_S07 : SEC-03 / AC-PRV-01
+  SM06_S03 --> SM06_S04 : SEC-03 / AC-PRV-01
+  SM06_S03 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S03 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S04 --> SM06_S03 : SEC-03 / AC-PRV-01
+  SM06_S04 --> SM06_S05 : SEC-03 / AC-PRV-01
+  SM06_S04 --> SM06_S06 : SEC-03 / AC-PRV-01
+  SM06_S05 --> [*]
+  SM06_S06 --> [*]
+  SM06_S07 --> [*]
+```
+
+### SNAPSHOT.snapshot_status
+
+- Owner: Snapshot service
+- Guard contract: Git, SQLite online backup, migration/lock manifests and hashes verify as one whole-app snapshot.
+
+```mermaid
+stateDiagram-v2
+  state "REQUESTED" as SM07_S01
+  state "CAPTURING" as SM07_S02
+  state "VALIDATING" as SM07_S03
+  state "AVAILABLE" as SM07_S04
+  state "INVALID" as SM07_S05
+  state "FAILED" as SM07_S06
+  state "DELETED" as SM07_S07
+  [*] --> SM07_S01
+  SM07_S01 --> SM07_S02 : AC-VER-01–03
+  SM07_S01 --> SM07_S06 : AC-VER-01–03
+  SM07_S02 --> SM07_S03 : AC-VER-01–03
+  SM07_S02 --> SM07_S06 : AC-VER-01–03
+  SM07_S03 --> SM07_S04 : AC-VER-01–03
+  SM07_S03 --> SM07_S05 : AC-VER-01–03
+  SM07_S03 --> SM07_S06 : AC-VER-01–03
+  SM07_S04 --> SM07_S05 : AC-VER-01–03
+  SM07_S04 --> SM07_S07 : AC-VER-01–03
+  SM07_S05 --> SM07_S07 : AC-VER-01–03
+  SM07_S06 --> SM07_S07 : AC-VER-01–03
+  SM07_S07 --> [*]
+```
+
+### RESTORE_JOB.restore_status
+
+- Owner: Restore service
+- Guard contract: Owner-only idempotent command; project lease, staged generation, before-images and journaled pointer CAS.
+
+```mermaid
+stateDiagram-v2
+  state "REQUESTED" as SM08_S01
+  state "VALIDATING_SOURCE" as SM08_S02
+  state "ACQUIRING_LOCK" as SM08_S03
+  state "RESTORING_CODE" as SM08_S04
+  state "RESTORING_DB" as SM08_S05
+  state "VERIFYING" as SM08_S06
+  state "CUTTING_OVER" as SM08_S07
+  state "ROLLING_BACK" as SM08_S08
+  state "SUCCEEDED" as SM08_S09
+  state "ROLLED_BACK" as SM08_S10
+  state "FAILED" as SM08_S11
+  state "TIMED_OUT" as SM08_S12
+  [*] --> SM08_S01
+  SM08_S01 --> SM08_S02 : AC-VER-04
+  SM08_S01 --> SM08_S11 : AC-VER-04
+  SM08_S02 --> SM08_S03 : AC-VER-04
+  SM08_S02 --> SM08_S11 : AC-VER-04
+  SM08_S02 --> SM08_S12 : AC-VER-04
+  SM08_S03 --> SM08_S04 : AC-VER-04
+  SM08_S03 --> SM08_S11 : AC-VER-04
+  SM08_S03 --> SM08_S12 : AC-VER-04
+  SM08_S04 --> SM08_S05 : AC-VER-04
+  SM08_S04 --> SM08_S08 : AC-VER-04
+  SM08_S05 --> SM08_S06 : AC-VER-04
+  SM08_S05 --> SM08_S08 : AC-VER-04
+  SM08_S06 --> SM08_S07 : AC-VER-04
+  SM08_S06 --> SM08_S08 : AC-VER-04
+  SM08_S07 --> SM08_S09 : AC-VER-04
+  SM08_S07 --> SM08_S08 : AC-VER-04
+  SM08_S08 --> SM08_S10 : AC-VER-04
+  SM08_S08 --> SM08_S11 : AC-VER-04
+  SM08_S09 --> [*]
+  SM08_S10 --> [*]
+  SM08_S11 --> [*]
+  SM08_S12 --> [*]
+```
+
+### PREVIEW_ROUTE.route_status
+
+- Owner: Preview Gateway
+- Guard contract: Owner/session/generation authorization plus workload and route readiness; stale routes fail closed.
+
+```mermaid
+stateDiagram-v2
+  state "DISABLED" as SM09_S01
+  state "STARTING" as SM09_S02
+  state "NOT_READY" as SM09_S03
+  state "READY" as SM09_S04
+  state "DEGRADED" as SM09_S05
+  state "ERROR" as SM09_S06
+  state "REVOKING" as SM09_S07
+  state "REVOKED" as SM09_S08
+  [*] --> SM09_S01
+  SM09_S01 --> SM09_S02 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S01 --> SM09_S08 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S03 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S04 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S05 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S02 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S04 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S05 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S03 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S04 --> SM09_S05 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S04 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S04 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S05 --> SM09_S04 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S05 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S05 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S06 --> SM09_S02 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S06 --> SM09_S07 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S07 --> SM09_S08 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S07 --> SM09_S06 : AC-PRV-01–02 / AC-SEC-01
+  SM09_S08 --> [*]
+```
+
+### JOB_RUN.run_status
+
+- Owner: Platform scheduler
+- Guard contract: Unique scheduled attempt; overlap guard, timeout and linked retry preserve immutable terminal history.
+
+```mermaid
+stateDiagram-v2
+  state "QUEUED" as SM10_S01
+  state "RUNNING" as SM10_S02
+  state "SUCCEEDED" as SM10_S03
+  state "FAILED" as SM10_S04
+  state "TIMED_OUT" as SM10_S05
+  state "CANCELLED" as SM10_S06
+  [*] --> SM10_S01
+  SM10_S01 --> SM10_S02 : AC-OPS-01
+  SM10_S01 --> SM10_S06 : AC-OPS-01
+  SM10_S02 --> SM10_S03 : AC-OPS-01
+  SM10_S02 --> SM10_S04 : AC-OPS-01
+  SM10_S02 --> SM10_S05 : AC-OPS-01
+  SM10_S02 --> SM10_S06 : AC-OPS-01
+  SM10_S03 --> [*]
+  SM10_S04 --> [*]
+  SM10_S05 --> [*]
+  SM10_S06 --> [*]
+```
+
 ## Sheet: Overview
 
 | Row | Non-empty cells |
