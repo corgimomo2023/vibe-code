@@ -4,6 +4,7 @@
 /apps/*/dist/
 /apps/*/.vite/
 /__pycache__/
+/.hermes/
 /.pytest_cache/
 *.pyc
 *.egg-info/
