@@ -5,6 +5,18 @@
 - Source SHA-256: `ba43e71db849138589cbc503cbdc9615e4d1b25b430d4f5119f9a78c8e988b97`
 - Purpose: deterministic text companion for fast diff, search and AI review; Office remains the visual authority.
 
+## Post-freeze Markdown-only technical-stack amendment
+
+> This amendment updates the active Markdown implementation contract only. The approved Office source remains frozen and unchanged.
+
+- Product UI: **React/Vite/TypeScript + Tailwind CSS + shadcn/ui**.
+- The normal product user has no IDE or code workspace: no source editor, file tree, terminal, Git controls or raw console.
+- Agent runtime: **Direct pinned @cline/sdk integration only; no LiteLLM**, model-fusion layer, alternate agent runtime or generic provider-routing abstraction.
+- Tailwind owns routine layout, spacing, typography and responsive rules; shadcn/ui provides the typed, accessible product UI primitives; CSS custom properties remain the design-token source of truth.
+- TanStack Query owns product server state: owner-scoped queries, cache, mutation lifecycle, retry, invalidation and refresh. It does not replace durable run/event reconciliation.
+- React Hook Form owns product form state and accessible validation; form schemas must match the relevant backend command/request contract.
+- UI and backend implementation follow DRY and SOLID: reusable primitives and services for proven common behavior, with small domain-focused modules rather than a monolithic application component or generic CRUD surface.
+
 ## Canonical Use Case Flow Diagrams
 
 ### UC-01 — Sign in and view projects

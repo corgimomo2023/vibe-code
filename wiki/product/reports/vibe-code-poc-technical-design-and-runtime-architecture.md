@@ -5,6 +5,26 @@
 - Source SHA-256: `63e80067a84c1ace418b7f09dc82d242fd5a1345a089ec22194a53778f167901`
 - Purpose: deterministic text companion for fast diff, search and AI review; Office remains the visual authority.
 
+## Post-freeze Markdown-only technical-stack amendment
+
+> This amendment updates the active Markdown implementation contract only. The approved Office source remains frozen and unchanged.
+
+- Product UI: **React/Vite/TypeScript + Tailwind CSS + shadcn/ui**.
+- The normal product user has no IDE or code workspace: no source editor, file tree, terminal, Git controls or raw console.
+- Agent runtime: **Direct pinned @cline/sdk integration only; no LiteLLM**, model-fusion layer, alternate agent runtime or generic provider-routing abstraction.
+- Tailwind owns routine layout, spacing, typography and responsive rules; shadcn/ui provides the typed, accessible product UI primitives; CSS custom properties remain the design-token source of truth.
+- TanStack Query owns owner-scoped server-state queries, cache, retry, mutation invalidation and ordinary refresh. Durable chat/run events, browser-session state and preview lifecycle reconciliation remain separate responsibilities.
+- React Hook Form owns form state, accessible errors and submission lifecycle. Its schema-based validation must remain aligned with the relevant NestJS request/command contract.
+- Frontend code is modularized by feature. Share typed shadcn/ui primitives, query keys, API clients and validation schemas only where they have real consumers; do not grow a monolithic `App.tsx`.
+- Backend follows DRY and SOLID through small NestJS domain modules. Each module owns its controller, application service, policy and repository port; extension occurs by adding a module or implementing a port, not by branching a central service.
+- A reusable OOP base application service may contain only proven cross-cutting behavior (owner-scope resolution, command idempotency, correlation/audit context and safe error mapping). It must not become a generic CRUD/God service or bypass module policy, authorization or transaction boundaries.
+
+### Restricted administration file inspection
+
+- Restricted administrators may inspect allowlisted project files and code through a **restricted read-only Monaco Editor viewer**.
+- Monaco is not an IDE: no terminal, extension marketplace, command execution, arbitrary path access or direct Save-to-workspace action.
+- File reads are owner/project scoped, canonical-path checked, bounded by type/size, secret-redacted and audited. Any future edit remains a separate approved platform command.
+
 ## Canonical State Model Diagrams
 
 ### PROJECT.lifecycle_status
